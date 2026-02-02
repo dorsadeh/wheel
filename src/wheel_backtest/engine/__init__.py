@@ -3,13 +3,19 @@
 This module provides the core engine for running wheel strategy backtests.
 
 Usage:
-    from wheel_backtest.engine import Portfolio, WheelStrategy, OptionSelector
+    from wheel_backtest.engine import WheelBacktest
+    from wheel_backtest.config import BacktestConfig
 
-    portfolio = Portfolio(cash=100_000)
-    selector = OptionSelector(dte_target=30, otm_pct=0.05)
-    strategy = WheelStrategy(portfolio, selector)
+    config = BacktestConfig(ticker="SPY", initial_capital=100_000)
+    backtest = WheelBacktest(config)
+    result = backtest.run()
 """
 
+from wheel_backtest.engine.backtest import (
+    BacktestResult,
+    Transaction,
+    WheelBacktest,
+)
 from wheel_backtest.engine.options import (
     Fill,
     OptionOrder,
@@ -29,6 +35,7 @@ from wheel_backtest.engine.wheel import (
 )
 
 __all__ = [
+    "BacktestResult",
     "Fill",
     "OptionOrder",
     "OptionPosition",
@@ -37,6 +44,8 @@ __all__ = [
     "OrderAction",
     "Portfolio",
     "PositionSide",
+    "Transaction",
+    "WheelBacktest",
     "WheelEvent",
     "WheelState",
     "WheelStrategy",

@@ -123,9 +123,27 @@ def run(
 
     _display_config(config)
 
-    # TODO: Implement backtest execution in future milestones
-    console.print("\n[yellow]Backtest execution not yet implemented.[/yellow]")
-    console.print("This will be added in Milestone 7.")
+    # Run the backtest
+    from wheel_backtest.engine import WheelBacktest
+
+    try:
+        backtest = WheelBacktest(config)
+        result = backtest.run()
+
+        # Display summary
+        _display_backtest_summary(result)
+
+        # Save transactions to CSV
+        transactions_df = backtest.get_transactions_df()
+        if not transactions_df.empty:
+            config.output_dir.mkdir(parents=True, exist_ok=True)
+            transactions_path = config.output_dir / f"{config.ticker}_transactions.csv"
+            transactions_df.to_csv(transactions_path, index=False)
+            console.print(f"\n[dim]Transactions saved to: {transactions_path}[/dim]")
+
+    except Exception as e:
+        console.print(f"\n[red]Error running backtest: {e}[/red]")
+        raise
 
 
 @main.command()
@@ -277,6 +295,55 @@ def _display_config(config: BacktestConfig) -> None:
     table.add_row("Output Directory", str(config.output_dir))
 
     console.print(table)
+
+
+def _display_backtest_summary(result) -> None:
+    """Display backtest results summary."""
+    from wheel_backtest.engine import BacktestResult
+
+    summary = result.summary
+
+    # Strategy summary table
+    table = Table(title="Wheel Strategy Summary", show_header=True)
+    table.add_column("Metric", style="cyan")
+    table.add_column("Value", style="green")
+
+    table.add_row("Puts Sold", str(summary["total_puts_sold"]))
+    table.add_row("Calls Sold", str(summary["total_calls_sold"]))
+    table.add_row("Put Assignments", str(summary["put_assignments"]))
+    table.add_row("Call Assignments", str(summary["call_assignments"]))
+    table.add_row("Puts Expired OTM", str(summary["puts_expired_otm"]))
+    table.add_row("Calls Expired OTM", str(summary["calls_expired_otm"]))
+    table.add_row("Total Premium Collected", f"${summary['total_premium_collected']:,.2f}")
+    table.add_row("Current State", summary["current_state"])
+
+    console.print("\n")
+    console.print(table)
+
+    # Performance table
+    total_return = result.final_equity - result.initial_capital
+    total_return_pct = (result.final_equity / result.initial_capital - 1) * 100
+    days = (result.end_date - result.start_date).days
+    years = days / 365.25
+
+    perf_table = Table(title="Performance Summary", show_header=True)
+    perf_table.add_column("Metric", style="cyan")
+    perf_table.add_column("Value", style="green")
+
+    perf_table.add_row("Start Date", str(result.start_date))
+    perf_table.add_row("End Date", str(result.end_date))
+    perf_table.add_row("Trading Days", str(days))
+    perf_table.add_row("Years", f"{years:.2f}")
+    perf_table.add_row("Initial Capital", f"${result.initial_capital:,.2f}")
+    perf_table.add_row("Final Equity", f"${result.final_equity:,.2f}")
+    perf_table.add_row("Total Return", f"${total_return:,.2f}")
+    perf_table.add_row("Total Return %", f"{total_return_pct:.2f}%")
+
+    if years > 0:
+        cagr = (pow(result.final_equity / result.initial_capital, 1 / years) - 1) * 100
+        perf_table.add_row("CAGR", f"{cagr:.2f}%")
+
+    console.print(perf_table)
 
 
 if __name__ == "__main__":
