@@ -143,13 +143,18 @@ def main():
 
                 # Save to history
                 history = get_history()
+                config.output_dir.mkdir(parents=True, exist_ok=True)
+
                 equity_csv_path = config.output_dir / f"{ticker}_backtest_equity.csv"
                 transactions_csv_path = config.output_dir / f"{ticker}_transactions.csv"
+
+                # Save equity curve
+                equity_df = result.equity_curve.to_dataframe()
+                equity_df.to_csv(equity_csv_path)
 
                 # Save transactions
                 transactions_df = backtest.get_transactions_df()
                 if not transactions_df.empty:
-                    config.output_dir.mkdir(parents=True, exist_ok=True)
                     transactions_df.to_csv(transactions_csv_path, index=False)
 
                 # Save to history
@@ -160,6 +165,7 @@ def main():
                     end_date=str(result.end_date),
                     final_equity=result.final_equity,
                     total_trades=len(result.events),
+                    equity_csv_path=equity_csv_path,
                     transactions_csv_path=transactions_csv_path if not transactions_df.empty else None,
                 )
 
