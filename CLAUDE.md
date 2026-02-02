@@ -94,8 +94,8 @@ Environment variables prefixed with `WHEEL_`:
 - [x] Milestone 3: Buy-and-Hold Benchmark ✅ COMPLETE
 - [x] Milestone 4: Portfolio + Wheel Engine ✅ COMPLETE
 - [x] Milestone 5: Full Backtest Integration ✅ COMPLETE
-- [ ] Milestone 6: Delta-Based Strike Selection (NEXT)
-- [ ] Milestone 7: Performance Metrics & Charts
+- [x] Milestone 6: Delta-Based Strike Selection ✅ COMPLETE
+- [ ] Milestone 7: Performance Metrics & Charts (NEXT)
 - [ ] Milestone 8: Backtest History Storage
 - [ ] Milestone 9: Streamlit Web UI
 

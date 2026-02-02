@@ -103,7 +103,7 @@ class WheelBacktest:
         self.selector = OptionSelector(
             dte_target=config.dte_target,
             dte_min=config.dte_min,
-            otm_pct=1.0 - config.delta_target,  # Convert delta to OTM percentage (rough approximation)
+            delta_target=config.delta_target,  # Use actual delta for strike selection
         )
         self.strategy = WheelStrategy(
             portfolio=self.portfolio,

@@ -81,26 +81,40 @@ class OptionSelector:
     """Selects options based on criteria.
 
     Supports selection by:
+    - Delta (e.g., -0.20 for puts, +0.20 for calls)
     - Percentage OTM (e.g., 5% below current price for puts)
     - Target DTE (days to expiration)
+
+    Selection method priority:
+    1. Delta-based selection (if delta_target provided and delta data available)
+    2. OTM percentage fallback (if delta unavailable)
     """
 
     def __init__(
         self,
         dte_target: int = 30,
         dte_min: int = 7,
-        otm_pct: float = 0.05,
+        delta_target: Optional[float] = None,
+        otm_pct: Optional[float] = None,
     ):
         """Initialize selector.
 
         Args:
             dte_target: Target days to expiration
             dte_min: Minimum DTE to consider
-            otm_pct: Target OTM percentage (0.05 = 5%)
+            delta_target: Target delta (e.g., 0.20 for 20 delta, auto-signs for puts/calls)
+            otm_pct: Target OTM percentage (0.05 = 5%), used as fallback if delta unavailable
         """
         self.dte_target = dte_target
         self.dte_min = dte_min
-        self.otm_pct = otm_pct
+        self.delta_target = delta_target
+
+        # Set default OTM percentage based on delta if not provided
+        if otm_pct is None and delta_target is not None:
+            # Rough approximation: 0.20 delta ≈ 5% OTM
+            self.otm_pct = delta_target * 0.25
+        else:
+            self.otm_pct = otm_pct if otm_pct is not None else 0.05
 
     def select_expiration(
         self,
@@ -206,6 +220,58 @@ class OptionSelector:
         valid_strikes.sort(key=lambda x: abs(x - target_strike))
         return valid_strikes[0]
 
+    def select_strike_by_delta(
+        self,
+        options_df: pd.DataFrame,
+        option_type: OptionType,
+        target_delta: float,
+        underlying_price: float,
+        cost_basis: Optional[float] = None,
+    ) -> Optional[float]:
+        """Select strike based on target delta.
+
+        Args:
+            options_df: DataFrame with options for a specific expiration
+            option_type: PUT or CALL
+            target_delta: Target absolute delta value (e.g., 0.20 for 20 delta)
+            underlying_price: Current underlying price
+            cost_basis: For covered calls, ensures strike >= cost basis
+
+        Returns:
+            Selected strike, or None if no suitable option found
+        """
+        if options_df.empty or "delta" not in options_df.columns:
+            return None
+
+        # Filter to options with valid delta
+        valid_options = options_df[options_df["delta"].notna()].copy()
+        if valid_options.empty:
+            return None
+
+        # For puts: target negative delta (e.g., -0.20)
+        # For calls: target positive delta (e.g., +0.20)
+        if option_type == OptionType.PUT:
+            target_signed_delta = -abs(target_delta)
+            # Filter to OTM puts (strike < underlying)
+            valid_options = valid_options[valid_options["strike"] <= underlying_price]
+        else:  # CALL
+            target_signed_delta = abs(target_delta)
+            # Filter to OTM calls (strike > underlying)
+            valid_options = valid_options[valid_options["strike"] >= underlying_price]
+
+            # For covered calls, ensure strike >= cost basis
+            if cost_basis is not None:
+                valid_options = valid_options[valid_options["strike"] >= cost_basis]
+
+        if valid_options.empty:
+            return None
+
+        # Find option with delta closest to target
+        valid_options["delta_diff"] = abs(valid_options["delta"] - target_signed_delta)
+        best_option = valid_options.loc[valid_options["delta_diff"].idxmin()]
+
+        return float(best_option["strike"])
+
     def select_option_from_chain(
         self,
         chain: pd.DataFrame,
@@ -247,16 +313,28 @@ class OptionSelector:
         # Filter to selected expiration
         exp_chain = type_chain[type_chain["expiration"].dt.date == selected_exp]
 
-        # Get unique strikes
-        strikes = sorted(exp_chain["strike"].unique())
+        # Select strike - try delta first, fall back to OTM percentage
+        selected_strike = None
 
-        # Select strike based on option type
-        if option_type == OptionType.PUT:
-            selected_strike = self.select_put_strike(underlying_price, strikes)
-        else:
-            selected_strike = self.select_call_strike(
-                underlying_price, strikes, cost_basis
+        # Try delta-based selection if configured and data available
+        if self.delta_target is not None:
+            selected_strike = self.select_strike_by_delta(
+                options_df=exp_chain,
+                option_type=option_type,
+                target_delta=self.delta_target,
+                underlying_price=underlying_price,
+                cost_basis=cost_basis,
             )
+
+        # Fall back to OTM percentage if delta selection failed
+        if selected_strike is None:
+            strikes = sorted(exp_chain["strike"].unique())
+            if option_type == OptionType.PUT:
+                selected_strike = self.select_put_strike(underlying_price, strikes)
+            else:
+                selected_strike = self.select_call_strike(
+                    underlying_price, strikes, cost_basis
+                )
 
         if selected_strike is None:
             return None
