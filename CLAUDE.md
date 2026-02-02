@@ -15,6 +15,12 @@ docker-compose run wheel --help
 docker-compose run wheel run SPY --capital 100000 --dte 30 --delta 0.20
 docker-compose run wheel benchmark SPY --start 2020-01-01 --end 2024-12-31
 
+# Backtest history
+docker-compose run wheel history list [--ticker SPY] [--limit 20]
+docker-compose run wheel history show <id>
+docker-compose run wheel history best [--metric cagr] [--ticker SPY]
+docker-compose run wheel history delete <id> [-y]
+
 # Run tests
 docker-compose run test                    # All tests
 docker-compose run test tests/unit/        # Unit tests only
@@ -96,7 +102,7 @@ Environment variables prefixed with `WHEEL_`:
 - [x] Milestone 5: Full Backtest Integration ✅ COMPLETE
 - [x] Milestone 6: Delta-Based Strike Selection ✅ COMPLETE
 - [x] Milestone 7: Performance Metrics & Charts ✅ COMPLETE
-- [ ] Milestone 8: Backtest History Storage (NEXT)
-- [ ] Milestone 9: Streamlit Web UI
+- [x] Milestone 8: Backtest History Storage ✅ COMPLETE
+- [ ] Milestone 9: Streamlit Web UI (NEXT)
 
 Full implementation plan: `.claude/plans/mighty-jumping-flurry.md`
