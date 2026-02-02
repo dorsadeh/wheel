@@ -36,12 +36,12 @@ class TestWheelBacktest:
         dates = pd.date_range("2024-01-01", "2024-01-05", freq="D")
         return pd.DataFrame(
             {
-                "Open": [470.0, 471.0, 472.0, 473.0, 474.0],
-                "High": [472.0, 473.0, 474.0, 475.0, 476.0],
-                "Low": [468.0, 469.0, 470.0, 471.0, 472.0],
-                "Close": [471.0, 472.0, 473.0, 474.0, 475.0],
-                "Adj Close": [471.0, 472.0, 473.0, 474.0, 475.0],
-                "Volume": [1000000] * 5,
+                "open": [470.0, 471.0, 472.0, 473.0, 474.0],
+                "high": [472.0, 473.0, 474.0, 475.0, 476.0],
+                "low": [468.0, 469.0, 470.0, 471.0, 472.0],
+                "close": [471.0, 472.0, 473.0, 474.0, 475.0],
+                "adjusted_close": [471.0, 472.0, 473.0, 474.0, 475.0],
+                "volume": [1000000] * 5,
             },
             index=dates,
         )
@@ -80,7 +80,7 @@ class TestWheelBacktest:
              patch("wheel_backtest.engine.backtest.PhilippdubachProvider"), \
              patch("wheel_backtest.engine.backtest.YFinanceProvider") as mock_yf:
             mock_provider = Mock()
-            mock_provider.get_underlying_prices.return_value = mock_price_data
+            mock_provider.get_prices.return_value = mock_price_data
             mock_yf.return_value = mock_provider
 
             backtest = WheelBacktest(config)
@@ -88,7 +88,7 @@ class TestWheelBacktest:
 
             assert not prices.empty
             assert len(prices) == 5
-            mock_provider.get_underlying_prices.assert_called_once()
+            mock_provider.get_prices.assert_called_once()
 
     def test_get_options_chain_success(
         self, config: BacktestConfig, mock_options_chain: pd.DataFrame

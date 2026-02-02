@@ -139,9 +139,12 @@ class WheelBacktest:
         console.print(f"Trading Days: {len(prices)}")
         console.print(f"Initial Capital: ${self.config.initial_capital:,.2f}\n")
 
-        # Record initial equity point
-        self.equity_curve.points.append(
-            EquityPoint(date=start_date, equity=self.config.initial_capital)
+        # Record initial equity point (all cash, no stock/options)
+        self.equity_curve.add_point(
+            trade_date=start_date,
+            cash=self.config.initial_capital,
+            stock_value=0.0,
+            options_value=0.0,
         )
 
         # Run backtest day by day
@@ -156,7 +159,7 @@ class WheelBacktest:
 
             for trade_date, price_row in prices.iterrows():
                 trade_date_obj = trade_date.date()
-                underlying_price = float(price_row["Close"])
+                underlying_price = float(price_row["close"])
 
                 # Get options chain for this date
                 options_chain = self._get_options_chain(trade_date_obj)
@@ -174,15 +177,20 @@ class WheelBacktest:
                         self._log_event(event, underlying_price)
 
                 # Record equity for this day
-                equity = self.portfolio.get_equity(underlying_price)
-                self.equity_curve.points.append(
-                    EquityPoint(date=trade_date_obj, equity=equity)
+                stock_value = self.portfolio.shares * underlying_price
+                # TODO: mark options to market properly
+                options_value = 0.0  # Simplified for now
+                self.equity_curve.add_point(
+                    trade_date=trade_date_obj,
+                    cash=self.portfolio.cash,
+                    stock_value=stock_value,
+                    options_value=options_value,
                 )
 
                 progress.advance(task)
 
         # Get final results
-        final_equity = self.equity_curve.points[-1].equity
+        final_equity = self.equity_curve.points[-1].total
 
         console.print(f"\n[bold green]Backtest Complete![/bold green]")
         console.print(f"Final Equity: ${final_equity:,.2f}")
@@ -218,7 +226,7 @@ class WheelBacktest:
             start = self.config.start_date or date(2020, 1, 1)
             end = self.config.end_date or date.today()
 
-        prices = self.underlying_provider.get_underlying_prices(
+        prices = self.underlying_provider.get_prices(
             ticker=self.config.ticker,
             start_date=start,
             end_date=end,
