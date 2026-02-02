@@ -126,11 +126,22 @@ class WheelBacktest:
         Returns:
             BacktestResult with all performance data
         """
+        # TODO: Add time profiling for each stage
+        # - Track time for: data loading, options chain fetching, strategy execution, metrics calculation
+        # - Display summary at end: "Data loading: 2.3s, Execution: 45.2s, Metrics: 0.5s"
+        # TODO: Add progress tracking with more detail
+        # - Show percentage complete: "Processing: 45% (123/252 days)"
+        # - Show current date being processed: "Processing 2024-03-15..."
+        # - Show contracts processed: "Puts sold: 12, Calls sold: 8, Assignments: 3"
+        # - Estimate time remaining based on current speed
+
         console.print(f"\n[bold]Running Wheel Strategy Backtest: {self.config.ticker}[/bold]")
 
         # Get underlying price data to determine date range
         console.print("[dim]Loading underlying price data...[/dim]")
+        # TODO: Start timer for data loading phase
         prices = self._get_price_data()
+        # TODO: End timer and log: "Loaded data in X.XXs"
 
         if prices.empty:
             raise ValueError(f"No price data available for {self.config.ticker}")
@@ -152,6 +163,12 @@ class WheelBacktest:
         )
 
         # Run backtest day by day
+        # TODO: Enhanced progress tracking
+        # - Add progress bar showing percentage: [████████░░] 80%
+        # - Show current date in description: "Processing 2024-03-15 (Day 180/252)"
+        # - Show running stats: "Trades: 45 | Premium: $12,450 | Current P&L: +8.5%"
+        # - Add elapsed time and ETA: "Elapsed: 1m 23s | ETA: 25s"
+        # TODO: Start timer for strategy execution phase
         with Progress(
             SpinnerColumn(),
             TextColumn("[progress.description]{task.description}"),
@@ -194,6 +211,7 @@ class WheelBacktest:
                 progress.advance(task)
 
         # Get final results
+        # TODO: End timer for strategy execution phase
         final_equity = self.equity_curve.points[-1].total
 
         console.print(f"\n[bold green]Backtest Complete![/bold green]")
@@ -204,6 +222,7 @@ class WheelBacktest:
         )
 
         # Calculate performance metrics
+        # TODO: Start timer for metrics calculation phase
         metrics_calc = MetricsCalculator(risk_free_rate=0.04)  # 4% risk-free rate
         metrics = metrics_calc.calculate(
             equity_curve=self.equity_curve,
@@ -211,6 +230,19 @@ class WheelBacktest:
             end_date=end_date,
             initial_capital=self.config.initial_capital,
         )
+        # TODO: End timer for metrics calculation phase
+
+        # TODO: Display timing summary at the end
+        # Example output:
+        # ╭─────────────────── Timing Summary ───────────────────╮
+        # │ Data Loading:         2.34s  (5%)                    │
+        # │ Options Chain Fetch: 18.21s (40%)                    │
+        # │ Strategy Execution:  22.15s (48%)                    │
+        # │ Metrics Calculation:  0.52s  (1%)                    │
+        # │ Other:                2.78s  (6%)                    │
+        # │ ─────────────────────────────────────────────────    │
+        # │ Total Time:          46.00s                          │
+        # ╰──────────────────────────────────────────────────────╯
 
         return BacktestResult(
             ticker=self.config.ticker,

@@ -120,6 +120,15 @@ def main():
             return
 
         # Show progress
+        # TODO: Replace spinner with real-time progress tracking
+        # - Add st.progress() bar showing percentage complete
+        # - Add st.status() or st.container() showing:
+        #   * Current phase: "Loading data..." / "Processing 2024-03-15..." / "Calculating metrics..."
+        #   * Progress: "Day 180/252 (71%)"
+        #   * Stats: "Contracts: 45 | Premium: $12,450 | P&L: +8.5%"
+        #   * Timing: "Elapsed: 1m 23s | ETA: 25s"
+        # - Use st.empty() to update progress in real-time
+        # - Consider websocket or polling to get progress from backend
         with st.spinner(f"Running backtest for {ticker}..."):
             try:
                 # Create config
