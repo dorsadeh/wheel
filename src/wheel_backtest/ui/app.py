@@ -17,7 +17,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# Custom CSS
+# Custom CSS - removed .stMetric styling to support dark mode
 st.markdown("""
 <style>
     .metric-card {
@@ -25,12 +25,6 @@ st.markdown("""
         padding: 20px;
         border-radius: 10px;
         margin: 10px 0;
-    }
-    .stMetric {
-        background-color: #ffffff;
-        padding: 15px;
-        border-radius: 8px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
 </style>
 """, unsafe_allow_html=True)
