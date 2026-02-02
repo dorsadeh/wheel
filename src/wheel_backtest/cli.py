@@ -145,8 +145,15 @@ def run(
         # Display summary
         _display_backtest_summary(result)
 
+        # Save to history database
+        from wheel_backtest.storage import BacktestHistory
+
+        history_db_path = config.cache_dir / "backtest_history.db"
+        history = BacktestHistory(history_db_path)
+
         # Save transactions to CSV
         transactions_df = backtest.get_transactions_df()
+        transactions_path = None
         if not transactions_df.empty:
             config.output_dir.mkdir(parents=True, exist_ok=True)
             transactions_path = config.output_dir / f"{config.ticker}_transactions.csv"
@@ -188,6 +195,20 @@ def run(
             for name, path in chart_files.items():
                 if name != "data":  # Don't list CSV
                     console.print(f"  • {name}: {path}")
+
+        # Save to history database
+        equity_csv_path = chart_files.get("data") if charts else None
+        record_id = history.save_backtest(
+            config=config,
+            metrics=result.metrics,
+            start_date=str(result.start_date),
+            end_date=str(result.end_date),
+            final_equity=result.final_equity,
+            total_trades=len(result.events),
+            equity_csv_path=equity_csv_path,
+            transactions_csv_path=transactions_path,
+        )
+        console.print(f"\n[dim]Saved to history database (ID: {record_id})[/dim]")
 
     except Exception as e:
         console.print(f"\n[red]Error running backtest: {e}[/red]")
@@ -321,6 +342,207 @@ def config(ctx: click.Context) -> None:
         output_dir=ctx.obj["output_dir"],
     )
     _display_config(cfg)
+
+
+@main.group()
+@click.pass_context
+def history(ctx: click.Context) -> None:
+    """Manage backtest history."""
+    pass
+
+
+@history.command(name="list")
+@click.option(
+    "--ticker",
+    help="Filter by ticker symbol",
+)
+@click.option(
+    "--limit",
+    type=int,
+    default=20,
+    help="Maximum number of records to display",
+)
+@click.pass_context
+def history_list(ctx: click.Context, ticker: Optional[str], limit: int) -> None:
+    """List backtest history records."""
+    from wheel_backtest.storage import BacktestHistory
+
+    history_db_path = ctx.obj["cache_dir"] / "backtest_history.db"
+    history = BacktestHistory(history_db_path)
+
+    records = history.list_backtests(ticker=ticker, limit=limit)
+
+    if not records:
+        console.print("[yellow]No backtest history found.[/yellow]")
+        return
+
+    table = Table(title="Backtest History", show_header=True)
+    table.add_column("ID", style="cyan")
+    table.add_column("Date", style="dim")
+    table.add_column("Ticker", style="green")
+    table.add_column("Period", style="dim")
+    table.add_column("Return %", style="green")
+    table.add_column("CAGR", style="green")
+    table.add_column("Sharpe", style="yellow")
+    table.add_column("Max DD", style="red")
+
+    for record in records:
+        table.add_row(
+            str(record.id),
+            record.run_date.strftime("%Y-%m-%d %H:%M"),
+            record.ticker,
+            f"{record.start_date} to {record.end_date}",
+            f"{record.total_return_pct:.2f}%",
+            f"{record.cagr:.2f}%",
+            f"{record.sharpe_ratio:.2f}",
+            f"{record.max_drawdown:.2f}%",
+        )
+
+    console.print(table)
+
+
+@history.command(name="show")
+@click.argument("record_id", type=int)
+@click.pass_context
+def history_show(ctx: click.Context, record_id: int) -> None:
+    """Show detailed backtest record."""
+    from wheel_backtest.storage import BacktestHistory
+
+    history_db_path = ctx.obj["cache_dir"] / "backtest_history.db"
+    history = BacktestHistory(history_db_path)
+
+    record = history.get_backtest(record_id)
+
+    if not record:
+        console.print(f"[red]Record ID {record_id} not found.[/red]")
+        return
+
+    # Display record details
+    table = Table(title=f"Backtest Record #{record.id}", show_header=True)
+    table.add_column("Metric", style="cyan")
+    table.add_column("Value", style="green")
+
+    table.add_row("Run Date", record.run_date.strftime("%Y-%m-%d %H:%M:%S"))
+    table.add_row("Ticker", record.ticker)
+    table.add_row("Period", f"{record.start_date} to {record.end_date}")
+    table.add_row("Initial Capital", f"${record.initial_capital:,.2f}")
+    table.add_row("Final Equity", f"${record.final_equity:,.2f}")
+    table.add_row("Total Return", f"${record.total_return:,.2f}")
+    table.add_row("Total Return %", f"{record.total_return_pct:.2f}%")
+    table.add_row("CAGR", f"{record.cagr:.2f}%")
+    table.add_row("Volatility", f"{record.volatility:.2f}%")
+    table.add_row("Sharpe Ratio", f"{record.sharpe_ratio:.2f}")
+    table.add_row("Sortino Ratio", f"{record.sortino_ratio:.2f}")
+    table.add_row("Max Drawdown", f"{record.max_drawdown:.2f}%")
+    table.add_row("Win Rate", f"{record.win_rate:.2f}%")
+    table.add_row("Profit Factor", f"{record.profit_factor:.2f}")
+    table.add_row("DTE Target", str(record.dte_target))
+    table.add_row("Delta Target", f"{record.delta_target:.2f}")
+    table.add_row("Commission", f"${record.commission:.2f}")
+    table.add_row("Total Trades", str(record.total_trades))
+    if record.git_commit:
+        table.add_row("Git Commit", record.git_commit[:8])
+    if record.equity_csv_path:
+        table.add_row("Equity CSV", record.equity_csv_path)
+    if record.transactions_csv_path:
+        table.add_row("Transactions CSV", record.transactions_csv_path)
+
+    console.print(table)
+
+
+@history.command(name="best")
+@click.option(
+    "--metric",
+    type=click.Choice([
+        "cagr", "sharpe_ratio", "sortino_ratio", "total_return_pct",
+        "win_rate", "profit_factor", "volatility", "max_drawdown"
+    ]),
+    default="cagr",
+    help="Metric to rank by",
+)
+@click.option(
+    "--ticker",
+    help="Filter by ticker symbol",
+)
+@click.option(
+    "--limit",
+    type=int,
+    default=10,
+    help="Number of top results to display",
+)
+@click.pass_context
+def history_best(ctx: click.Context, metric: str, ticker: Optional[str], limit: int) -> None:
+    """Show best backtests by metric."""
+    from wheel_backtest.storage import BacktestHistory
+
+    history_db_path = ctx.obj["cache_dir"] / "backtest_history.db"
+    history = BacktestHistory(history_db_path)
+
+    records = history.get_best_by_metric(metric=metric, ticker=ticker, limit=limit)
+
+    if not records:
+        console.print("[yellow]No backtest history found.[/yellow]")
+        return
+
+    metric_display = metric.replace("_", " ").title()
+    table = Table(title=f"Best Backtests by {metric_display}", show_header=True)
+    table.add_column("ID", style="cyan")
+    table.add_column("Ticker", style="green")
+    table.add_column("Period", style="dim")
+    table.add_column(metric_display, style="bold green")
+    table.add_column("Sharpe", style="yellow")
+    table.add_column("Max DD", style="red")
+
+    for record in records:
+        metric_value = getattr(record, metric)
+        if metric in ["max_drawdown", "volatility", "win_rate", "total_return_pct", "cagr"]:
+            metric_str = f"{metric_value:.2f}%"
+        else:
+            metric_str = f"{metric_value:.2f}"
+
+        table.add_row(
+            str(record.id),
+            record.ticker,
+            f"{record.start_date} to {record.end_date}",
+            metric_str,
+            f"{record.sharpe_ratio:.2f}",
+            f"{record.max_drawdown:.2f}%",
+        )
+
+    console.print(table)
+
+
+@history.command(name="delete")
+@click.argument("record_id", type=int)
+@click.option("--yes", "-y", is_flag=True, help="Skip confirmation")
+@click.pass_context
+def history_delete(ctx: click.Context, record_id: int, yes: bool) -> None:
+    """Delete a backtest record."""
+    from wheel_backtest.storage import BacktestHistory
+
+    history_db_path = ctx.obj["cache_dir"] / "backtest_history.db"
+    history = BacktestHistory(history_db_path)
+
+    record = history.get_backtest(record_id)
+    if not record:
+        console.print(f"[red]Record ID {record_id} not found.[/red]")
+        return
+
+    if not yes:
+        console.print(f"\n[yellow]About to delete:[/yellow]")
+        console.print(f"  ID: {record.id}")
+        console.print(f"  Ticker: {record.ticker}")
+        console.print(f"  Date: {record.run_date.strftime('%Y-%m-%d %H:%M')}")
+        console.print(f"  Period: {record.start_date} to {record.end_date}")
+
+        if not click.confirm("\nAre you sure?"):
+            console.print("[dim]Cancelled.[/dim]")
+            return
+
+    if history.delete_backtest(record_id):
+        console.print(f"[green]Deleted record #{record_id}[/green]")
+    else:
+        console.print(f"[red]Failed to delete record #{record_id}[/red]")
 
 
 def _display_config(config: BacktestConfig) -> None:
