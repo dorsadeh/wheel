@@ -139,47 +139,41 @@ def main():
     col1, col2, col3, col4 = st.columns(4)
 
     with col1:
-        st.markdown("""
-        ### 🎯 Delta-Based Selection
-        Select strikes using actual option Greeks
-        for precise positioning.
-        """)
+        with st.container():
+            st.subheader("🎯 Delta-Based Selection")
+            st.write("Select strikes using actual option Greeks for precise positioning.")
 
     with col2:
-        st.markdown("""
-        ### 📊 Comprehensive Metrics
-        CAGR, Sharpe, Sortino, drawdown,
-        win rate, and more.
-        """)
+        with st.container():
+            st.subheader("📊 Comprehensive Metrics")
+            st.write("CAGR, Sharpe, Sortino, drawdown, win rate, and more.")
 
     with col3:
-        st.markdown("""
-        ### 💾 Persistent History
-        All backtests saved to SQLite
-        for easy comparison.
-        """)
+        with st.container():
+            st.subheader("💾 Persistent History")
+            st.write("All backtests saved to SQLite for easy comparison.")
 
     with col4:
-        st.markdown("""
-        ### 📈 Visual Analysis
-        Equity curves, drawdown charts,
-        and strategy comparisons.
-        """)
+        with st.container():
+            st.subheader("📈 Visual Analysis")
+            st.write("Equity curves, drawdown charts, and strategy comparisons.")
 
     # Data Source Info
     st.markdown("---")
     st.header("📦 Data Source")
 
-    st.markdown("""
-    **Historical Options Data:** Philippe Dubach Dataset
-    - 24.6M options records (2008-2025)
-    - 104 tickers with full Greeks
-    - End-of-day prices and implied volatility
+    col1, col2 = st.columns(2)
 
-    **Underlying Prices:** Yahoo Finance
-    - Adjusted daily OHLCV data
-    - Dividend information
-    """)
+    with col1:
+        st.markdown("**Historical Options Data:** Philippe Dubach Dataset")
+        st.write("• 24.6M options records (2008-2025)")
+        st.write("• 104 tickers with full Greeks")
+        st.write("• End-of-day prices and implied volatility")
+
+    with col2:
+        st.markdown("**Underlying Prices:** Yahoo Finance")
+        st.write("• Adjusted daily OHLCV data")
+        st.write("• Dividend information")
 
     # Footer
     st.markdown("---")
