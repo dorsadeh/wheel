@@ -149,6 +149,11 @@ def run(
     default=100_000,
     help="Initial capital in USD",
 )
+@click.option(
+    "--chart/--no-chart",
+    default=True,
+    help="Generate charts",
+)
 @click.pass_context
 def benchmark(
     ctx: click.Context,
@@ -156,11 +161,16 @@ def benchmark(
     start_date: Optional[date],
     end_date: Optional[date],
     initial_capital: float,
+    chart: bool,
 ) -> None:
     """Calculate buy-and-hold benchmark for comparison.
 
     TICKER: Stock symbol to benchmark (default: SPY)
     """
+    from wheel_backtest.analytics import BuyAndHoldBenchmark
+    from wheel_backtest.data import DataCache, YFinanceProvider
+    from wheel_backtest.reports import create_benchmark_report
+
     config = load_config(
         ticker=ticker,
         start_date=start_date,
@@ -171,11 +181,69 @@ def benchmark(
     )
 
     console.print(f"\n[bold]Buy-and-Hold Benchmark: {config.ticker}[/bold]")
-    console.print(f"Capital: ${config.initial_capital:,.2f}")
 
-    # TODO: Implement benchmark calculation in Milestone 3
-    console.print("\n[yellow]Benchmark calculation not yet implemented.[/yellow]")
-    console.print("This will be added in Milestone 3.")
+    # Set default dates if not provided
+    effective_start = config.start_date or date(2020, 1, 1)
+    effective_end = config.end_date or date.today()
+
+    console.print(f"Period: {effective_start} to {effective_end}")
+    console.print(f"Initial Capital: ${config.initial_capital:,.2f}")
+
+    # Initialize data provider
+    cache = DataCache(config.cache_dir)
+    provider = YFinanceProvider(cache)
+    benchmark_calc = BuyAndHoldBenchmark(provider)
+
+    console.print("\n[dim]Fetching price data...[/dim]")
+
+    # Calculate benchmark
+    curve = benchmark_calc.calculate(
+        ticker=config.ticker,
+        start_date=effective_start,
+        end_date=effective_end,
+        initial_capital=config.initial_capital,
+    )
+
+    if not curve.points:
+        console.print("[red]Error: No price data available for the specified period.[/red]")
+        return
+
+    # Get summary statistics
+    summary = benchmark_calc.get_summary(curve, config.initial_capital)
+
+    # Display results
+    table = Table(title="Buy-and-Hold Results", show_header=True)
+    table.add_column("Metric", style="cyan")
+    table.add_column("Value", style="green")
+
+    table.add_row("Ticker", config.ticker)
+    table.add_row("Start Date", str(summary["start_date"]))
+    table.add_row("End Date", str(summary["end_date"]))
+    table.add_row("Trading Days", str(summary["trading_days"]))
+    table.add_row("Years", str(summary["years"]))
+    table.add_row("Initial Capital", f"${summary['initial_capital']:,.2f}")
+    table.add_row("Final Value", f"${summary['final_value']:,.2f}")
+    table.add_row("Total Return", f"${summary['total_return']:,.2f}")
+    table.add_row("Total Return %", f"{summary['total_return_pct']:.2f}%")
+    table.add_row("CAGR", f"{summary['cagr_pct']:.2f}%")
+
+    console.print(table)
+
+    # Generate charts
+    if chart:
+        config.output_dir.mkdir(parents=True, exist_ok=True)
+        console.print(f"\n[dim]Generating charts in {config.output_dir}...[/dim]")
+
+        charts = create_benchmark_report(
+            benchmark_curve=curve,
+            ticker=config.ticker,
+            initial_capital=config.initial_capital,
+            output_dir=config.output_dir,
+        )
+
+        console.print("\n[bold]Generated Files:[/bold]")
+        for name, path in charts.items():
+            console.print(f"  • {name}: {path}")
 
 
 @main.command()
