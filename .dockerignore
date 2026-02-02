@@ -1,0 +1,39 @@
+# Git
+.git/
+.gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# Virtual environments
+.venv/
+venv/
+
+# IDE
+.idea/
+.vscode/
+
+# Testing artifacts
+.coverage
+.pytest_cache/
+htmlcov/
+.mypy_cache/
+
+# Project specific - don't copy cache to image
+cache/
+output/
+data_validation/
+
+# Documentation
+*.md
+!README.md
+
+# Environment files
+.env
+.env.local

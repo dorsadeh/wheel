@@ -1,0 +1,68 @@
+services:
+  wheel:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ./cache:/app/cache
+      - ./output:/app/output
+      - ./src:/app/src:ro
+      - ./tests:/app/tests:ro
+    environment:
+      - PYTHONPATH=/app/src
+      - WHEEL_CACHE_DIR=/app/cache
+      - WHEEL_OUTPUT_DIR=/app/output
+    working_dir: /app
+
+  # Development service with shell access
+  dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ./cache:/app/cache
+      - ./output:/app/output
+      - ./src:/app/src
+      - ./tests:/app/tests
+    environment:
+      - PYTHONPATH=/app/src
+      - WHEEL_CACHE_DIR=/app/cache
+      - WHEEL_OUTPUT_DIR=/app/output
+    working_dir: /app
+    entrypoint: /bin/bash
+    stdin_open: true
+    tty: true
+
+  # Test runner service
+  test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ./cache:/app/cache
+      - ./src:/app/src:ro
+      - ./tests:/app/tests:ro
+    environment:
+      - PYTHONPATH=/app/src
+    working_dir: /app
+    entrypoint: pytest
+    command: ["-v", "--tb=short"]
+
+  # Streamlit web UI
+  ui:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./cache:/app/cache
+      - ./output:/app/output
+      - ./src:/app/src:ro
+    environment:
+      - PYTHONPATH=/app/src
+      - WHEEL_CACHE_DIR=/app/cache
+      - WHEEL_OUTPUT_DIR=/app/output
+    working_dir: /app
+    entrypoint: streamlit
+    command: ["run", "src/wheel_backtest/ui/app.py", "--server.address", "0.0.0.0"]
