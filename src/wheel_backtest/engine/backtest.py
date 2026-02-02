@@ -12,6 +12,7 @@ from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
 from wheel_backtest.analytics.equity import EquityCurve, EquityPoint
+from wheel_backtest.analytics.metrics import MetricsCalculator, PerformanceMetrics
 from wheel_backtest.config import BacktestConfig
 from wheel_backtest.data import DataCache, PhilippdubachProvider, YFinanceProvider
 from wheel_backtest.engine.options import OptionSelector
@@ -34,6 +35,8 @@ class BacktestResult:
         equity_curve: Daily equity values
         events: All wheel strategy events
         summary: Strategy execution summary
+        metrics: Performance metrics
+        config: Backtest configuration
     """
 
     ticker: str
@@ -44,6 +47,7 @@ class BacktestResult:
     equity_curve: EquityCurve
     events: list[WheelEvent]
     summary: dict
+    metrics: PerformanceMetrics
     config: BacktestConfig
 
 
@@ -199,6 +203,15 @@ class WheelBacktest:
             f"({(final_equity / self.config.initial_capital - 1) * 100:.2f}%)"
         )
 
+        # Calculate performance metrics
+        metrics_calc = MetricsCalculator(risk_free_rate=0.04)  # 4% risk-free rate
+        metrics = metrics_calc.calculate(
+            equity_curve=self.equity_curve,
+            start_date=start_date,
+            end_date=end_date,
+            initial_capital=self.config.initial_capital,
+        )
+
         return BacktestResult(
             ticker=self.config.ticker,
             start_date=start_date,
@@ -208,6 +221,7 @@ class WheelBacktest:
             equity_curve=self.equity_curve,
             events=self.strategy.events,
             summary=self.strategy.get_summary(),
+            metrics=metrics,
             config=self.config,
         )
 

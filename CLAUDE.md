@@ -95,8 +95,8 @@ Environment variables prefixed with `WHEEL_`:
 - [x] Milestone 4: Portfolio + Wheel Engine ✅ COMPLETE
 - [x] Milestone 5: Full Backtest Integration ✅ COMPLETE
 - [x] Milestone 6: Delta-Based Strike Selection ✅ COMPLETE
-- [ ] Milestone 7: Performance Metrics & Charts (NEXT)
-- [ ] Milestone 8: Backtest History Storage
+- [x] Milestone 7: Performance Metrics & Charts ✅ COMPLETE
+- [ ] Milestone 8: Backtest History Storage (NEXT)
 - [ ] Milestone 9: Streamlit Web UI
 
 Full implementation plan: `.claude/plans/mighty-jumping-flurry.md`

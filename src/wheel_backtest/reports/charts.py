@@ -273,3 +273,82 @@ def create_benchmark_report(
     charts["data"] = csv_path
 
     return charts
+
+
+def create_backtest_report(
+    backtest_curve: EquityCurve,
+    benchmark_curve: EquityCurve | None,
+    ticker: str,
+    output_dir: Path,
+    strategy_name: str = "Wheel Strategy",
+) -> dict[str, Path]:
+    """Create full backtest report with multiple charts.
+
+    Args:
+        backtest_curve: Wheel strategy equity curve
+        benchmark_curve: Buy-and-hold equity curve (optional)
+        ticker: Stock symbol
+        output_dir: Directory to save charts
+        strategy_name: Name of strategy for labels
+
+    Returns:
+        Dictionary mapping chart name to file path
+    """
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    charts = {}
+
+    # Strategy equity curve
+    equity_path = output_dir / f"{ticker}_backtest_equity.png"
+    plot_equity_curve(
+        backtest_curve,
+        title=f"{ticker} {strategy_name} Equity Curve",
+        output_path=equity_path,
+    )
+    charts["equity"] = equity_path
+    plt.close()
+
+    # Strategy drawdown
+    drawdown_path = output_dir / f"{ticker}_backtest_drawdown.png"
+    plot_drawdown(
+        backtest_curve,
+        title=f"{ticker} {strategy_name} Drawdown",
+        output_path=drawdown_path,
+    )
+    charts["drawdown"] = drawdown_path
+    plt.close()
+
+    # Comparison with benchmark (if provided)
+    if benchmark_curve:
+        comparison_path = output_dir / f"{ticker}_strategy_comparison.png"
+        plot_equity_comparison(
+            curves={
+                strategy_name: backtest_curve,
+                "Buy & Hold": benchmark_curve,
+            },
+            title=f"{ticker} Strategy Comparison",
+            output_path=comparison_path,
+        )
+        charts["comparison"] = comparison_path
+        plt.close()
+
+        # Returns comparison
+        returns_path = output_dir / f"{ticker}_returns_comparison.png"
+        plot_returns_comparison(
+            curves={
+                strategy_name: backtest_curve,
+                "Buy & Hold": benchmark_curve,
+            },
+            title=f"{ticker} Returns Comparison",
+            output_path=returns_path,
+        )
+        charts["returns"] = returns_path
+        plt.close()
+
+    # Save equity data as CSV
+    csv_path = output_dir / f"{ticker}_backtest_equity.csv"
+    df = backtest_curve.to_dataframe()
+    df.to_csv(csv_path)
+    charts["data"] = csv_path
+
+    return charts

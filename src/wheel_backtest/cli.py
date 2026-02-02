@@ -94,6 +94,16 @@ def main(ctx: click.Context, cache_dir: Path, output_dir: Path) -> None:
     default=0.0,
     help="Commission per contract in USD",
 )
+@click.option(
+    "--charts/--no-charts",
+    default=True,
+    help="Generate charts",
+)
+@click.option(
+    "--benchmark/--no-benchmark",
+    default=False,
+    help="Include buy-and-hold benchmark comparison",
+)
 @click.pass_context
 def run(
     ctx: click.Context,
@@ -104,6 +114,8 @@ def run(
     dte_target: int,
     delta_target: float,
     commission_per_contract: float,
+    charts: bool,
+    benchmark: bool,
 ) -> None:
     """Run a wheel strategy backtest.
 
@@ -140,6 +152,42 @@ def run(
             transactions_path = config.output_dir / f"{config.ticker}_transactions.csv"
             transactions_df.to_csv(transactions_path, index=False)
             console.print(f"\n[dim]Transactions saved to: {transactions_path}[/dim]")
+
+        # Generate charts
+        if charts:
+            from wheel_backtest.analytics import BuyAndHoldBenchmark
+            from wheel_backtest.data import DataCache, YFinanceProvider
+            from wheel_backtest.reports.charts import create_backtest_report
+
+            console.print("\n[dim]Generating charts...[/dim]")
+
+            # Optionally calculate benchmark for comparison
+            benchmark_curve = None
+            if benchmark:
+                cache = DataCache(config.cache_dir)
+                yf_provider = YFinanceProvider(cache)
+                benchmark_calc = BuyAndHoldBenchmark(yf_provider)
+
+                console.print("[dim]Calculating buy-and-hold benchmark...[/dim]")
+                benchmark_curve = benchmark_calc.calculate(
+                    ticker=config.ticker,
+                    start_date=result.start_date,
+                    end_date=result.end_date,
+                    initial_capital=config.initial_capital,
+                )
+
+            # Generate charts
+            chart_files = create_backtest_report(
+                backtest_curve=result.equity_curve,
+                benchmark_curve=benchmark_curve,
+                ticker=config.ticker,
+                output_dir=config.output_dir,
+            )
+
+            console.print("\n[bold]Generated Charts:[/bold]")
+            for name, path in chart_files.items():
+                if name != "data":  # Don't list CSV
+                    console.print(f"  • {name}: {path}")
 
     except Exception as e:
         console.print(f"\n[red]Error running backtest: {e}[/red]")
@@ -302,6 +350,7 @@ def _display_backtest_summary(result) -> None:
     from wheel_backtest.engine import BacktestResult
 
     summary = result.summary
+    metrics = result.metrics
 
     # Strategy summary table
     table = Table(title="Wheel Strategy Summary", show_header=True)
@@ -320,13 +369,11 @@ def _display_backtest_summary(result) -> None:
     console.print("\n")
     console.print(table)
 
-    # Performance table
-    total_return = result.final_equity - result.initial_capital
-    total_return_pct = (result.final_equity / result.initial_capital - 1) * 100
+    # Performance metrics table
     days = (result.end_date - result.start_date).days
     years = days / 365.25
 
-    perf_table = Table(title="Performance Summary", show_header=True)
+    perf_table = Table(title="Performance Metrics", show_header=True)
     perf_table.add_column("Metric", style="cyan")
     perf_table.add_column("Value", style="green")
 
@@ -336,12 +383,17 @@ def _display_backtest_summary(result) -> None:
     perf_table.add_row("Years", f"{years:.2f}")
     perf_table.add_row("Initial Capital", f"${result.initial_capital:,.2f}")
     perf_table.add_row("Final Equity", f"${result.final_equity:,.2f}")
-    perf_table.add_row("Total Return", f"${total_return:,.2f}")
-    perf_table.add_row("Total Return %", f"{total_return_pct:.2f}%")
-
-    if years > 0:
-        cagr = (pow(result.final_equity / result.initial_capital, 1 / years) - 1) * 100
-        perf_table.add_row("CAGR", f"{cagr:.2f}%")
+    perf_table.add_row("Total Return", f"${metrics.total_return:,.2f}")
+    perf_table.add_row("Total Return %", f"{metrics.total_return_pct:.2f}%")
+    perf_table.add_row("CAGR", f"{metrics.cagr:.2f}%")
+    perf_table.add_row("Volatility (Ann.)", f"{metrics.volatility:.2f}%")
+    perf_table.add_row("Sharpe Ratio", f"{metrics.sharpe_ratio:.2f}")
+    perf_table.add_row("Sortino Ratio", f"{metrics.sortino_ratio:.2f}")
+    perf_table.add_row("Max Drawdown", f"{metrics.max_drawdown:.2f}%")
+    perf_table.add_row("Max DD Duration", f"{metrics.max_drawdown_duration} days")
+    perf_table.add_row("Calmar Ratio", f"{metrics.calmar_ratio:.2f}")
+    perf_table.add_row("Win Rate", f"{metrics.win_rate:.2f}%")
+    perf_table.add_row("Profit Factor", f"{metrics.profit_factor:.2f}")
 
     console.print(perf_table)
 
