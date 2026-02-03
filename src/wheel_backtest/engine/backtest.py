@@ -3,13 +3,15 @@
 Coordinates the wheel strategy execution across historical data.
 """
 
+import time
 from dataclasses import dataclass, field
 from datetime import date
 from typing import Optional
 
 import pandas as pd
 from rich.console import Console
-from rich.progress import Progress, SpinnerColumn, TextColumn
+from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TimeRemainingColumn
+from rich.table import Table
 
 from wheel_backtest.analytics.equity import EquityCurve, EquityPoint
 from wheel_backtest.analytics.metrics import MetricsCalculator, PerformanceMetrics
@@ -126,22 +128,18 @@ class WheelBacktest:
         Returns:
             BacktestResult with all performance data
         """
-        # TODO: Add time profiling for each stage
-        # - Track time for: data loading, options chain fetching, strategy execution, metrics calculation
-        # - Display summary at end: "Data loading: 2.3s, Execution: 45.2s, Metrics: 0.5s"
-        # TODO: Add progress tracking with more detail
-        # - Show percentage complete: "Processing: 45% (123/252 days)"
-        # - Show current date being processed: "Processing 2024-03-15..."
-        # - Show contracts processed: "Puts sold: 12, Calls sold: 8, Assignments: 3"
-        # - Estimate time remaining based on current speed
+        # Time tracking
+        timings = {}
+        start_time = time.time()
 
         console.print(f"\n[bold]Running Wheel Strategy Backtest: {self.config.ticker}[/bold]")
 
         # Get underlying price data to determine date range
         console.print("[dim]Loading underlying price data...[/dim]")
-        # TODO: Start timer for data loading phase
+        t0 = time.time()
         prices = self._get_price_data()
-        # TODO: End timer and log: "Loaded data in X.XXs"
+        timings['data_loading'] = time.time() - t0
+        console.print(f"[dim]Loaded {len(prices)} days in {timings['data_loading']:.2f}s[/dim]")
 
         if prices.empty:
             raise ValueError(f"No price data available for {self.config.ticker}")
@@ -163,27 +161,35 @@ class WheelBacktest:
         )
 
         # Run backtest day by day
-        # TODO: Enhanced progress tracking
-        # - Add progress bar showing percentage: [████████░░] 80%
-        # - Show current date in description: "Processing 2024-03-15 (Day 180/252)"
-        # - Show running stats: "Trades: 45 | Premium: $12,450 | Current P&L: +8.5%"
-        # - Add elapsed time and ETA: "Elapsed: 1m 23s | ETA: 25s"
-        # TODO: Start timer for strategy execution phase
+        t_execution = time.time()
+        t_options_fetch = 0.0
+
         with Progress(
             SpinnerColumn(),
             TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+            TimeRemainingColumn(),
             console=console,
         ) as progress:
             task = progress.add_task(
-                f"Processing {len(prices)} trading days...", total=len(prices)
+                f"Processing {len(prices)} days", total=len(prices)
             )
 
-            for trade_date, price_row in prices.iterrows():
+            for idx, (trade_date, price_row) in enumerate(prices.iterrows(), 1):
                 trade_date_obj = trade_date.date()
                 underlying_price = float(price_row["close"])
 
-                # Get options chain for this date
+                # Update progress with current date
+                progress.update(
+                    task,
+                    description=f"Processing {trade_date_obj} (Day {idx}/{len(prices)})",
+                )
+
+                # Get options chain for this date (track time)
+                t0 = time.time()
                 options_chain = self._get_options_chain(trade_date_obj)
+                t_options_fetch += time.time() - t0
 
                 if not options_chain.empty:
                     # Process this day with the strategy
@@ -211,7 +217,8 @@ class WheelBacktest:
                 progress.advance(task)
 
         # Get final results
-        # TODO: End timer for strategy execution phase
+        timings['execution'] = time.time() - t_execution
+        timings['options_fetch'] = t_options_fetch
         final_equity = self.equity_curve.points[-1].total
 
         console.print(f"\n[bold green]Backtest Complete![/bold green]")
@@ -222,7 +229,7 @@ class WheelBacktest:
         )
 
         # Calculate performance metrics
-        # TODO: Start timer for metrics calculation phase
+        t0 = time.time()
         metrics_calc = MetricsCalculator(risk_free_rate=0.04)  # 4% risk-free rate
         metrics = metrics_calc.calculate(
             equity_curve=self.equity_curve,
@@ -230,19 +237,38 @@ class WheelBacktest:
             end_date=end_date,
             initial_capital=self.config.initial_capital,
         )
-        # TODO: End timer for metrics calculation phase
+        timings['metrics'] = time.time() - t0
 
-        # TODO: Display timing summary at the end
-        # Example output:
-        # ╭─────────────────── Timing Summary ───────────────────╮
-        # │ Data Loading:         2.34s  (5%)                    │
-        # │ Options Chain Fetch: 18.21s (40%)                    │
-        # │ Strategy Execution:  22.15s (48%)                    │
-        # │ Metrics Calculation:  0.52s  (1%)                    │
-        # │ Other:                2.78s  (6%)                    │
-        # │ ─────────────────────────────────────────────────    │
-        # │ Total Time:          46.00s                          │
-        # ╰──────────────────────────────────────────────────────╯
+        # Calculate total time and display summary
+        timings['total'] = time.time() - start_time
+        timings['other'] = timings['total'] - sum([
+            timings['data_loading'],
+            timings['execution'],
+            timings['metrics']
+        ])
+
+        # Display timing summary
+        console.print("\n")
+        table = Table(title="⏱️  Performance Timing Summary", show_header=True, header_style="bold")
+        table.add_column("Phase", style="cyan")
+        table.add_column("Time", justify="right", style="green")
+        table.add_column("Percentage", justify="right", style="yellow")
+
+        for phase, label in [
+            ('data_loading', 'Data Loading'),
+            ('options_fetch', 'Options Chain Fetch'),
+            ('execution', 'Strategy Execution'),
+            ('metrics', 'Metrics Calculation'),
+            ('other', 'Other'),
+        ]:
+            t = timings[phase]
+            pct = (t / timings['total']) * 100
+            table.add_row(label, f"{t:.2f}s", f"{pct:.1f}%")
+
+        table.add_section()
+        table.add_row("[bold]Total Time[/bold]", f"[bold]{timings['total']:.2f}s[/bold]", "[bold]100%[/bold]")
+
+        console.print(table)
 
         return BacktestResult(
             ticker=self.config.ticker,
