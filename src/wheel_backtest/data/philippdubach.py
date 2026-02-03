@@ -160,9 +160,9 @@ class PhilippdubachProvider(OptionsDataProvider):
         """
         df = self._ensure_data_loaded(ticker)
 
-        # Filter to specific date
-        trade_date_ts = pd.Timestamp(trade_date)
-        mask = df["trade_date"].dt.date == trade_date
+        # Filter to specific date using pandas Timestamp comparison (much faster than .dt.date)
+        trade_date_ts = pd.Timestamp(trade_date).normalize()
+        mask = df["trade_date"].dt.normalize() == trade_date_ts
 
         chain = df[mask].copy()
 
