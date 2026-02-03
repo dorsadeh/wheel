@@ -124,6 +124,9 @@ class WheelBacktest:
         self.equity_curve = EquityCurve(points=[])
         self.transactions: list[Transaction] = []
 
+        # Pre-filtered options data (for performance)
+        self._options_data_filtered: Optional[pd.DataFrame] = None
+
     def run(self) -> BacktestResult:
         """Execute the backtest.
 
@@ -153,6 +156,14 @@ class WheelBacktest:
         console.print(f"Period: {start_date} to {end_date}")
         console.print(f"Trading Days: {len(prices)}")
         console.print(f"Initial Capital: ${self.config.initial_capital:,.2f}\n")
+
+        # Pre-filter options data to backtest date range for performance
+        console.print("[dim]Pre-filtering options data to date range...[/dim]")
+        t0 = time.time()
+        self._prefilter_options_data(start_date, end_date)
+        t_prefilter = time.time() - t0
+        console.print(f"[dim]Pre-filtered options data in {t_prefilter:.2f}s[/dim]")
+        timings['prefilter'] = t_prefilter
 
         # Record initial equity point (all cash, no stock/options)
         self.equity_curve.add_point(
@@ -258,14 +269,16 @@ class WheelBacktest:
 
         for phase, label in [
             ('data_loading', 'Data Loading'),
+            ('prefilter', 'Options Data Pre-filter'),
             ('options_fetch', 'Options Chain Fetch'),
             ('execution', 'Strategy Execution'),
             ('metrics', 'Metrics Calculation'),
             ('other', 'Other'),
         ]:
-            t = timings[phase]
-            pct = (t / timings['total']) * 100
-            table.add_row(label, f"{t:.2f}s", f"{pct:.1f}%")
+            if phase in timings:
+                t = timings[phase]
+                pct = (t / timings['total']) * 100
+                table.add_row(label, f"{t:.2f}s", f"{pct:.1f}%")
 
         table.add_section()
         table.add_row("[bold]Total Time[/bold]", f"[bold]{timings['total']:.2f}s[/bold]", "[bold]100%[/bold]")
@@ -315,6 +328,34 @@ class WheelBacktest:
 
         return prices
 
+    def _prefilter_options_data(self, start_date: date, end_date: date) -> None:
+        """Pre-filter options data to backtest date range for performance.
+
+        This loads the full options dataset once and filters it to only the
+        dates needed for this backtest, dramatically improving performance.
+
+        Args:
+            start_date: Backtest start date
+            end_date: Backtest end date
+        """
+        # Load full options data for ticker
+        df = self.options_provider._ensure_data_loaded(self.config.ticker)
+
+        # Filter to backtest date range using efficient pandas operations
+        start_ts = pd.Timestamp(start_date).normalize()
+        end_ts = pd.Timestamp(end_date).normalize()
+
+        mask = (df["trade_date"].dt.normalize() >= start_ts) & (df["trade_date"].dt.normalize() <= end_ts)
+        self._options_data_filtered = df[mask].copy()
+
+        # Log size reduction
+        original_size = len(df)
+        filtered_size = len(self._options_data_filtered)
+        console.print(
+            f"[dim]Filtered {original_size:,} rows → {filtered_size:,} rows "
+            f"({filtered_size/original_size*100:.1f}% of original)[/dim]"
+        )
+
     def _get_options_chain(self, trade_date: date) -> pd.DataFrame:
         """Get options chain for a specific date.
 
@@ -324,6 +365,13 @@ class WheelBacktest:
         Returns:
             DataFrame with options chain data
         """
+        # Use pre-filtered data if available (much faster)
+        if self._options_data_filtered is not None:
+            trade_date_ts = pd.Timestamp(trade_date).normalize()
+            mask = self._options_data_filtered["trade_date"].dt.normalize() == trade_date_ts
+            return self._options_data_filtered[mask].copy()
+
+        # Fallback to provider if pre-filtering not done
         try:
             return self.options_provider.get_options_chain(
                 ticker=self.config.ticker,
