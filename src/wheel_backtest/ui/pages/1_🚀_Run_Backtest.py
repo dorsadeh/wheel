@@ -249,6 +249,45 @@ def main():
                     for stat, value in trading_stats.items():
                         st.text(f"{stat}: {value}")
 
+                # Performance Timing
+                if result.timings:
+                    st.markdown("---")
+                    st.subheader("⏱️ Performance Timing")
+
+                    timing_data = []
+                    for phase, label in [
+                        ('data_loading', 'Data Loading'),
+                        ('options_fetch', 'Options Chain Fetch'),
+                        ('execution', 'Strategy Execution'),
+                        ('metrics', 'Metrics Calculation'),
+                        ('other', 'Other'),
+                    ]:
+                        if phase in result.timings:
+                            t = result.timings[phase]
+                            pct = (t / result.timings['total']) * 100 if 'total' in result.timings else 0
+                            timing_data.append({
+                                "Phase": label,
+                                "Time (s)": f"{t:.2f}",
+                                "Percentage": f"{pct:.1f}%"
+                            })
+
+                    if 'total' in result.timings:
+                        timing_data.append({
+                            "Phase": "**Total Time**",
+                            "Time (s)": f"**{result.timings['total']:.2f}**",
+                            "Percentage": "**100%**"
+                        })
+
+                    st.dataframe(timing_data, use_container_width=True, hide_index=True)
+
+                    # Highlight if options fetch is slow
+                    if 'options_fetch' in result.timings and result.timings['options_fetch'] > 10:
+                        st.warning(
+                            f"⚠️ Options data loading took {result.timings['options_fetch']:.1f}s "
+                            f"({(result.timings['options_fetch']/result.timings['total'])*100:.0f}% of total time). "
+                            "This is the main bottleneck."
+                        )
+
                 # Link to analysis
                 st.markdown("---")
                 st.info(f"💡 View detailed analysis on the **Analysis** page (Record #{record_id})")

@@ -39,6 +39,7 @@ class BacktestResult:
         summary: Strategy execution summary
         metrics: Performance metrics
         config: Backtest configuration
+        timings: Performance timing breakdown by phase
     """
 
     ticker: str
@@ -51,6 +52,7 @@ class BacktestResult:
     summary: dict
     metrics: PerformanceMetrics
     config: BacktestConfig
+    timings: dict[str, float] = field(default_factory=dict)
 
 
 @dataclass
@@ -281,6 +283,7 @@ class WheelBacktest:
             summary=self.strategy.get_summary(),
             metrics=metrics,
             config=self.config,
+            timings=timings,
         )
 
     def _get_price_data(self) -> pd.DataFrame:
