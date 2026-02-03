@@ -255,9 +255,10 @@ class WheelBacktest:
         # Calculate total time and display summary
         timings['total'] = time.time() - start_time
         timings['other'] = timings['total'] - sum([
-            timings['data_loading'],
-            timings['execution'],
-            timings['metrics']
+            timings.get('data_loading', 0),
+            timings.get('prefilter', 0),
+            timings.get('execution', 0),
+            timings.get('metrics', 0)
         ])
 
         # Display timing summary
