@@ -332,29 +332,25 @@ class WheelBacktest:
     def _prefilter_options_data(self, start_date: date, end_date: date) -> None:
         """Pre-filter options data to backtest date range for performance.
 
-        This loads the full options dataset once and filters it to only the
-        dates needed for this backtest, dramatically improving performance.
+        This uses PyArrow predicate pushdown to filter while reading the parquet file,
+        and caches the filtered result for reuse.
 
         Args:
             start_date: Backtest start date
             end_date: Backtest end date
         """
-        # Load full options data for ticker
-        df = self.options_provider._ensure_data_loaded(self.config.ticker)
+        # Use the provider's optimized filtered method (with PyArrow + caching)
+        self._options_data_filtered = self.options_provider.get_filtered_options(
+            ticker=self.config.ticker,
+            start_date=start_date,
+            end_date=end_date,
+        )
 
-        # Filter to backtest date range using efficient pandas operations
-        start_ts = pd.Timestamp(start_date).normalize()
-        end_ts = pd.Timestamp(end_date).normalize()
-
-        mask = (df["trade_date"].dt.normalize() >= start_ts) & (df["trade_date"].dt.normalize() <= end_ts)
-        self._options_data_filtered = df[mask].copy()
-
-        # Log size reduction
-        original_size = len(df)
+        # Log result
         filtered_size = len(self._options_data_filtered)
         console.print(
-            f"[dim]Filtered {original_size:,} rows → {filtered_size:,} rows "
-            f"({filtered_size/original_size*100:.1f}% of original)[/dim]"
+            f"[dim]Loaded {filtered_size:,} rows for date range "
+            f"{start_date} to {end_date}[/dim]"
         )
 
     def _get_options_chain(self, trade_date: date) -> pd.DataFrame:

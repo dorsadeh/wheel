@@ -9,8 +9,10 @@ import logging
 import urllib.request
 from datetime import date
 from pathlib import Path
+from typing import Optional
 
 import pandas as pd
+import pyarrow.parquet as pq
 
 from wheel_backtest.data.cache import DataCache
 from wheel_backtest.data.provider import OptionsDataProvider
@@ -145,6 +147,85 @@ class PhilippdubachProvider(OptionsDataProvider):
 
         # Store in memory
         self._data[ticker] = df
+
+        return df
+
+    def get_filtered_options(
+        self,
+        ticker: str,
+        start_date: date,
+        end_date: date,
+    ) -> pd.DataFrame:
+        """Get options data filtered to a date range using PyArrow predicate pushdown.
+
+        This is much faster than loading all data and filtering in pandas,
+        especially for large datasets.
+
+        Args:
+            ticker: Stock symbol
+            start_date: Start date for filter
+            end_date: End date for filter
+
+        Returns:
+            DataFrame with options data in the date range
+        """
+        ticker = ticker.upper()
+
+        # Create cache suffix for this date range
+        cache_suffix = f"{start_date}_{end_date}"
+
+        # Check cache first
+        cached = self._cache.get(self.name, ticker, "options_filtered", suffix=cache_suffix)
+        if cached is not None:
+            logger.info(f"Using cached filtered data: {ticker} {start_date} to {end_date}")
+            return cached
+
+        # Check if we have the full data file cached
+        cache_path = self._cache._get_cache_path(self.name, ticker, "options")
+
+        if cache_path.exists():
+            # Use PyArrow to filter while reading
+            logger.info(f"Filtering cached data with PyArrow: {ticker} {start_date} to {end_date}")
+
+            # Read parquet with PyArrow filters
+            table = pq.read_table(
+                cache_path,
+                filters=[
+                    ("trade_date", ">=", pd.Timestamp(start_date)),
+                    ("trade_date", "<=", pd.Timestamp(end_date)),
+                ],
+            )
+            df = table.to_pandas()
+
+            # Normalize column names (already done in cache, but be safe)
+            if "date" in df.columns:
+                df = df.rename(columns=COLUMN_MAPPING)
+
+            # Ensure datetime types
+            if "trade_date" in df.columns:
+                df["trade_date"] = pd.to_datetime(df["trade_date"])
+            if "expiration" in df.columns:
+                df["expiration"] = pd.to_datetime(df["expiration"])
+
+            # Normalize option_type
+            if "option_type" in df.columns:
+                df["option_type"] = df["option_type"].str.lower()
+        else:
+            # Download and filter in one go
+            logger.info(f"Downloading and filtering: {ticker} {start_date} to {end_date}")
+
+            # Download full data first (will be cached)
+            full_df = self._ensure_data_loaded(ticker)
+
+            # Filter to date range
+            start_ts = pd.Timestamp(start_date).normalize()
+            end_ts = pd.Timestamp(end_date).normalize()
+            mask = (full_df["trade_date"].dt.normalize() >= start_ts) & (full_df["trade_date"].dt.normalize() <= end_ts)
+            df = full_df[mask].copy()
+
+        # Cache the filtered result
+        self._cache.put(self.name, ticker, "options_filtered", df, suffix=cache_suffix)
+        logger.info(f"Cached filtered data: {len(df):,} rows for {ticker} {start_date} to {end_date}")
 
         return df
 

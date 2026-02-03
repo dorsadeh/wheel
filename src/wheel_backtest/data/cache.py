@@ -48,45 +48,51 @@ class DataCache:
         """Save cache metadata to disk."""
         self.metadata_path.write_text(json.dumps(self._metadata, indent=2, default=str))
 
-    def _get_cache_key(self, provider: str, ticker: str, data_type: str) -> str:
+    def _get_cache_key(self, provider: str, ticker: str, data_type: str, suffix: str = "") -> str:
         """Generate deterministic cache key."""
-        return f"{provider}/{ticker.lower()}/{data_type}"
+        base = f"{provider}/{ticker.lower()}/{data_type}"
+        return f"{base}/{suffix}" if suffix else base
 
-    def _get_cache_path(self, provider: str, ticker: str, data_type: str) -> Path:
+    def _get_cache_path(self, provider: str, ticker: str, data_type: str, suffix: str = "") -> Path:
         """Get file path for cached data."""
+        if suffix:
+            return self.cache_dir / provider / ticker.lower() / f"{data_type}_{suffix}.parquet"
         return self.cache_dir / provider / ticker.lower() / f"{data_type}.parquet"
 
-    def has(self, provider: str, ticker: str, data_type: str) -> bool:
+    def has(self, provider: str, ticker: str, data_type: str, suffix: str = "") -> bool:
         """Check if data is cached.
 
         Args:
             provider: Provider name (e.g., 'philippdubach')
             ticker: Stock symbol
             data_type: Type of data ('options' or 'underlying')
+            suffix: Optional suffix for filtered data (e.g., '2023-01-01_2023-12-31')
 
         Returns:
             True if cached data exists
         """
-        path = self._get_cache_path(provider, ticker, data_type)
+        path = self._get_cache_path(provider, ticker, data_type, suffix)
         return path.exists()
 
-    def get(self, provider: str, ticker: str, data_type: str) -> pd.DataFrame | None:
+    def get(self, provider: str, ticker: str, data_type: str, suffix: str = "") -> pd.DataFrame | None:
         """Retrieve cached data.
 
         Args:
             provider: Provider name
             ticker: Stock symbol
             data_type: Type of data
+            suffix: Optional suffix for filtered data
 
         Returns:
             Cached DataFrame or None if not found
         """
-        path = self._get_cache_path(provider, ticker, data_type)
+        path = self._get_cache_path(provider, ticker, data_type, suffix)
+        cache_key = self._get_cache_key(provider, ticker, data_type, suffix)
         if not path.exists():
-            logger.debug(f"Cache miss: {provider}/{ticker}/{data_type}")
+            logger.debug(f"Cache miss: {cache_key}")
             return None
 
-        logger.debug(f"Cache hit: {provider}/{ticker}/{data_type}")
+        logger.debug(f"Cache hit: {cache_key}")
         try:
             return pd.read_parquet(path)
         except Exception as e:
@@ -99,6 +105,7 @@ class DataCache:
         ticker: str,
         data_type: str,
         data: pd.DataFrame,
+        suffix: str = "",
     ) -> None:
         """Store data in cache.
 
@@ -107,14 +114,15 @@ class DataCache:
             ticker: Stock symbol
             data_type: Type of data
             data: DataFrame to cache
+            suffix: Optional suffix for filtered data
         """
-        path = self._get_cache_path(provider, ticker, data_type)
+        path = self._get_cache_path(provider, ticker, data_type, suffix)
         path.parent.mkdir(parents=True, exist_ok=True)
 
         data.to_parquet(path, index=True)
 
         # Update metadata
-        cache_key = self._get_cache_key(provider, ticker, data_type)
+        cache_key = self._get_cache_key(provider, ticker, data_type, suffix)
         self._metadata["entries"][cache_key] = {
             "path": str(path),
             "rows": len(data),
@@ -122,27 +130,28 @@ class DataCache:
         }
         self._save_metadata()
 
-        logger.info(f"Cached {len(data)} rows: {provider}/{ticker}/{data_type}")
+        logger.info(f"Cached {len(data)} rows: {cache_key}")
 
-    def invalidate(self, provider: str, ticker: str, data_type: str) -> bool:
+    def invalidate(self, provider: str, ticker: str, data_type: str, suffix: str = "") -> bool:
         """Remove cached data.
 
         Args:
             provider: Provider name
             ticker: Stock symbol
             data_type: Type of data
+            suffix: Optional suffix for filtered data
 
         Returns:
             True if data was removed, False if it didn't exist
         """
-        path = self._get_cache_path(provider, ticker, data_type)
-        cache_key = self._get_cache_key(provider, ticker, data_type)
+        path = self._get_cache_path(provider, ticker, data_type, suffix)
+        cache_key = self._get_cache_key(provider, ticker, data_type, suffix)
 
         if path.exists():
             path.unlink()
             self._metadata["entries"].pop(cache_key, None)
             self._save_metadata()
-            logger.info(f"Invalidated cache: {provider}/{ticker}/{data_type}")
+            logger.info(f"Invalidated cache: {cache_key}")
             return True
         return False
 

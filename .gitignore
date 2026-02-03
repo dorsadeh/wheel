@@ -49,6 +49,7 @@ cache/
 output/
 *.parquet
 data_validation/
+temp/
 
 # Environment
 .env
