@@ -6,6 +6,7 @@ from pathlib import Path
 import streamlit as st
 from wheel_backtest.config import BacktestConfig
 from wheel_backtest.engine import WheelBacktest
+from wheel_backtest.ui.components import display_results_tabs
 from wheel_backtest.ui.utils import get_cache_dir, get_history, get_output_dir
 
 st.set_page_config(
@@ -182,115 +183,45 @@ def main():
                 st.success(f"✅ Backtest complete! Saved as record #{record_id}")
                 st.markdown("---")
 
-                # Results summary
-                st.header("📊 Results")
+                # Display results in tabs (tastytrade-style)
+                display_results_tabs(result, transactions_df)
 
-                col1, col2, col3, col4 = st.columns(4)
-
-                with col1:
-                    st.metric(
-                        "Final Equity",
-                        f"${result.final_equity:,.2f}",
-                        f"{result.metrics.total_return_pct:.2f}%",
-                    )
-
-                with col2:
-                    st.metric(
-                        "CAGR",
-                        f"{result.metrics.cagr:.2f}%",
-                    )
-
-                with col3:
-                    st.metric(
-                        "Sharpe Ratio",
-                        f"{result.metrics.sharpe_ratio:.2f}",
-                    )
-
-                with col4:
-                    st.metric(
-                        "Max Drawdown",
-                        f"{result.metrics.max_drawdown:.2f}%",
-                    )
-
-                # Additional metrics
-                st.markdown("---")
-                col1, col2 = st.columns(2)
-
-                with col1:
-                    st.subheader("Performance Metrics")
-                    metrics_data = {
-                        "Total Return": f"${result.metrics.total_return:,.2f}",
-                        "Return %": f"{result.metrics.total_return_pct:.2f}%",
-                        "CAGR": f"{result.metrics.cagr:.2f}%",
-                        "Volatility": f"{result.metrics.volatility:.2f}%",
-                        "Sharpe Ratio": f"{result.metrics.sharpe_ratio:.2f}",
-                        "Sortino Ratio": f"{result.metrics.sortino_ratio:.2f}",
-                        "Max Drawdown": f"{result.metrics.max_drawdown:.2f}%",
-                        "Max DD Duration": f"{result.metrics.max_drawdown_duration} days",
-                        "Calmar Ratio": f"{result.metrics.calmar_ratio:.2f}",
-                    }
-                    for metric, value in metrics_data.items():
-                        st.text(f"{metric}: {value}")
-
-                with col2:
-                    st.subheader("Trading Statistics")
-                    summary = result.summary
-                    trading_stats = {
-                        "Total Puts Sold": summary["total_puts_sold"],
-                        "Total Calls Sold": summary["total_calls_sold"],
-                        "Put Assignments": summary["put_assignments"],
-                        "Call Assignments": summary["call_assignments"],
-                        "Puts Expired OTM": summary["puts_expired_otm"],
-                        "Calls Expired OTM": summary["calls_expired_otm"],
-                        "Premium Collected": f"${summary['total_premium_collected']:,.2f}",
-                        "Win Rate": f"{result.metrics.win_rate:.2f}%",
-                        "Profit Factor": f"{result.metrics.profit_factor:.2f}",
-                    }
-                    for stat, value in trading_stats.items():
-                        st.text(f"{stat}: {value}")
-
-                # Performance Timing
+                # Performance Timing (optional, at the bottom)
                 if result.timings:
-                    st.markdown("---")
-                    st.subheader("⏱️ Performance Timing")
+                    with st.expander("⏱️ Performance Timing"):
+                        timing_data = []
+                        for phase, label in [
+                            ('data_loading', 'Data Loading'),
+                            ('options_fetch', 'Options Chain Fetch'),
+                            ('execution', 'Strategy Execution'),
+                            ('metrics', 'Metrics Calculation'),
+                            ('other', 'Other'),
+                        ]:
+                            if phase in result.timings:
+                                t = result.timings[phase]
+                                pct = (t / result.timings['total']) * 100 if 'total' in result.timings else 0
+                                timing_data.append({
+                                    "Phase": label,
+                                    "Time (s)": f"{t:.2f}",
+                                    "Percentage": f"{pct:.1f}%"
+                                })
 
-                    timing_data = []
-                    for phase, label in [
-                        ('data_loading', 'Data Loading'),
-                        ('options_fetch', 'Options Chain Fetch'),
-                        ('execution', 'Strategy Execution'),
-                        ('metrics', 'Metrics Calculation'),
-                        ('other', 'Other'),
-                    ]:
-                        if phase in result.timings:
-                            t = result.timings[phase]
-                            pct = (t / result.timings['total']) * 100 if 'total' in result.timings else 0
+                        if 'total' in result.timings:
                             timing_data.append({
-                                "Phase": label,
-                                "Time (s)": f"{t:.2f}",
-                                "Percentage": f"{pct:.1f}%"
+                                "Phase": "**Total Time**",
+                                "Time (s)": f"**{result.timings['total']:.2f}**",
+                                "Percentage": "**100%**"
                             })
 
-                    if 'total' in result.timings:
-                        timing_data.append({
-                            "Phase": "**Total Time**",
-                            "Time (s)": f"**{result.timings['total']:.2f}**",
-                            "Percentage": "**100%**"
-                        })
+                        st.dataframe(timing_data, use_container_width=True, hide_index=True)
 
-                    st.dataframe(timing_data, use_container_width=True, hide_index=True)
-
-                    # Highlight if options fetch is slow
-                    if 'options_fetch' in result.timings and result.timings['options_fetch'] > 10:
-                        st.warning(
-                            f"⚠️ Options data loading took {result.timings['options_fetch']:.1f}s "
-                            f"({(result.timings['options_fetch']/result.timings['total'])*100:.0f}% of total time). "
-                            "This is the main bottleneck."
-                        )
-
-                # Link to analysis
-                st.markdown("---")
-                st.info(f"💡 View detailed analysis on the **Analysis** page (Record #{record_id})")
+                        # Highlight if options fetch is slow
+                        if 'options_fetch' in result.timings and result.timings['options_fetch'] > 10:
+                            st.warning(
+                                f"⚠️ Options data loading took {result.timings['options_fetch']:.1f}s "
+                                f"({(result.timings['options_fetch']/result.timings['total'])*100:.0f}% of total time). "
+                                "This is the main bottleneck."
+                            )
 
             except Exception as e:
                 st.error(f"❌ Error running backtest: {e}")
