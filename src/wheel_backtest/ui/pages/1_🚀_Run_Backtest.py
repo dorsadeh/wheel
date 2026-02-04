@@ -107,6 +107,16 @@ def main():
                 help="Commission charged per option contract",
             )
 
+            st.subheader("Risk Management")
+
+            min_call_strike_at_cost_basis = st.checkbox(
+                "Protect against losses on covered calls",
+                value=True,
+                help="Ensure covered call strikes are at or above your assignment cost basis. "
+                     "This prevents locking in losses if calls are assigned. "
+                     "Example: If put assigned at $100, only sell calls at strikes ≥ $100.",
+            )
+
         st.markdown("---")
 
         # Submit button
@@ -152,6 +162,7 @@ def main():
                     put_delta=put_delta,
                     call_delta=call_delta,
                     commission_per_contract=commission,
+                    min_call_strike_at_cost_basis=min_call_strike_at_cost_basis,
                     data_provider="philippdubach",
                     cache_dir=get_cache_dir(),
                     output_dir=get_output_dir(),

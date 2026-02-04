@@ -109,6 +109,12 @@ def main(ctx: click.Context, cache_dir: Path, output_dir: Path) -> None:
     help="Commission per contract in USD",
 )
 @click.option(
+    "--protect-covered-calls/--no-protect-covered-calls",
+    "min_call_strike_at_cost_basis",
+    default=True,
+    help="Ensure covered call strikes are at or above assignment cost basis to avoid losses",
+)
+@click.option(
     "--charts/--no-charts",
     default=True,
     help="Generate charts",
@@ -130,6 +136,7 @@ def run(
     put_delta: Optional[float],
     call_delta: Optional[float],
     commission_per_contract: float,
+    min_call_strike_at_cost_basis: bool,
     charts: bool,
     benchmark: bool,
 ) -> None:
@@ -147,6 +154,7 @@ def run(
         put_delta=put_delta,
         call_delta=call_delta,
         commission_per_contract=commission_per_contract,
+        min_call_strike_at_cost_basis=min_call_strike_at_cost_basis,
         cache_dir=ctx.obj["cache_dir"],
         output_dir=ctx.obj["output_dir"],
     )

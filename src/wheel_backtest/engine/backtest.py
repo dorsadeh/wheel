@@ -114,6 +114,7 @@ class WheelBacktest:
             delta_target=config.delta_target,  # Legacy fallback
             put_delta=config.effective_put_delta,
             call_delta=config.effective_call_delta,
+            min_call_strike_at_cost_basis=config.min_call_strike_at_cost_basis,
         )
         self.strategy = WheelStrategy(
             portfolio=self.portfolio,

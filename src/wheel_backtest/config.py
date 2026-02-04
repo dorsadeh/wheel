@@ -43,6 +43,11 @@ class BacktestConfig(BaseSettings):
         default=0.0, ge=0, description="Commission per contract in USD"
     )
 
+    # Risk management
+    min_call_strike_at_cost_basis: bool = Field(
+        default=True, description="Ensure covered call strikes are at or above assignment cost basis to avoid losses"
+    )
+
     # Data provider settings
     data_provider: Literal["philippdubach"] = Field(
         default="philippdubach", description="Options data provider"
