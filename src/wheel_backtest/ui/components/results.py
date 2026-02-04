@@ -9,7 +9,6 @@ from typing import Optional
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
-from plotly.subplots import make_subplots
 
 from wheel_backtest.analytics.benchmark import BuyAndHoldBenchmark
 from wheel_backtest.analytics.equity import EquityCurve
@@ -26,7 +25,11 @@ def display_results_tabs(result: BacktestResult, transactions_df: pd.DataFrame):
         result: Backtest result with metrics and equity curve
         transactions_df: DataFrame with all transactions
     """
-    # Calculate buy-and-hold benchmark
+    # Calculate the actual capital used by the wheel strategy
+    # This is the capital needed to secure 1 contract initially
+    used_capital = _calculate_used_capital(result, transactions_df)
+
+    # Calculate buy-and-hold benchmark using the same capital as wheel strategy
     cache = DataCache(result.config.cache_dir)
     yf_provider = YFinanceProvider(cache)
     benchmark_calc = BuyAndHoldBenchmark(yf_provider)
@@ -35,10 +38,10 @@ def display_results_tabs(result: BacktestResult, transactions_df: pd.DataFrame):
         ticker=result.ticker,
         start_date=result.start_date,
         end_date=result.end_date,
-        initial_capital=result.initial_capital,
+        initial_capital=used_capital,
     )
 
-    # Calculate benchmark metrics
+    # Calculate benchmark metrics using the same capital as wheel strategy
     benchmark_df = benchmark_curve.to_dataframe()
     if not benchmark_df.empty:
         metrics_calc = MetricsCalculator()
@@ -46,7 +49,7 @@ def display_results_tabs(result: BacktestResult, transactions_df: pd.DataFrame):
             equity_curve=benchmark_curve,
             start_date=result.start_date,
             end_date=result.end_date,
-            initial_capital=result.initial_capital,
+            initial_capital=used_capital,
         )
     else:
         benchmark_metrics = None
@@ -55,7 +58,7 @@ def display_results_tabs(result: BacktestResult, transactions_df: pd.DataFrame):
     tab1, tab2, tab3 = st.tabs(["📊 Summary", "📈 Details", "📋 Logs"])
 
     with tab1:
-        _display_summary_tab(result, benchmark_curve, benchmark_metrics)
+        _display_summary_tab(result, benchmark_curve, benchmark_metrics, used_capital)
 
     with tab2:
         _display_details_tab(result, transactions_df)
@@ -68,6 +71,7 @@ def _display_summary_tab(
     result: BacktestResult,
     benchmark_curve: EquityCurve,
     benchmark_metrics: Optional[PerformanceMetrics],
+    used_capital: float,
 ):
     """Display summary tab with config, chart, and metrics comparison."""
     # Configuration panel
@@ -89,11 +93,11 @@ def _display_summary_tab(
 
     with col3:
         st.markdown("**ENTRY CONDITIONS**")
-        st.text(f"Enter: On every Monday")
+        st.text(f"Enter: When no active position")
         st.text(f"Maximum active trades: 1")
 
         st.markdown("**EXIT CONDITIONS**")
-        st.text(f"Take profit: at 50% of premium")
+        st.text(f"Hold options until expiration")
 
     st.markdown("---")
 
@@ -103,8 +107,41 @@ def _display_summary_tab(
 
     st.markdown("---")
 
+    # Profit breakdown
+    st.subheader("Profit Breakdown")
+
+    # Calculate breakdown
+    total_return = result.metrics.total_return
+    total_premiums = result.summary.get("total_premium_collected", 0)
+    total_commissions = result.summary.get("total_commissions", 0)
+    stock_gains = total_return - total_premiums + total_commissions
+
+    col1, col2, col3, col4 = st.columns(4)
+
+    with col1:
+        st.metric("💰 Total Return", f"${total_return:,.2f}")
+
+    with col2:
+        st.metric("📊 Premium Income", f"${total_premiums:,.2f}",
+                 help="Total premiums collected from selling options")
+
+    with col3:
+        st.metric("📈 Stock Gains/Losses", f"${stock_gains:,.2f}",
+                 help="Realized and unrealized gains from holding shares")
+
+    with col4:
+        st.metric("💸 Commissions", f"-${total_commissions:,.2f}",
+                 help="Total commissions paid")
+
+    st.caption(f"💡 Total Return = Premium Income + Stock Gains - Commissions")
+
+    st.markdown("---")
+
     # Metrics comparison
     st.subheader("Strategy Comparison")
+
+    # Show capital used for comparison
+    st.caption(f"📊 Both strategies compared using ${used_capital:,.0f} capital (capital required for 1 contract)")
 
     col1, col2 = st.columns(2)
 
@@ -116,9 +153,9 @@ def _display_summary_tab(
             "green" if result.metrics.total_return >= 0 else "red",
         )
         _display_metric_row("Max drawdown", f"{result.metrics.max_drawdown:.2f}%",
-                           f"${result.metrics.max_drawdown * result.initial_capital / 100:,.0f} on {result.start_date}")
+                           f"${abs(result.metrics.max_drawdown * used_capital / 100):,.0f} on {result.start_date}")
         _display_metric_row("Return on used capital", f"{result.metrics.total_return_pct:.2f}%",
-                           f"${result.initial_capital:,.0f} used capital")
+                           f"${used_capital:,.0f} used capital")
         _display_metric_row("MAR ratio", f"{result.metrics.calmar_ratio:.2f}", "")
 
     with col2:
@@ -130,9 +167,9 @@ def _display_summary_tab(
                 "green" if benchmark_metrics.total_return >= 0 else "red",
             )
             _display_metric_row("Max drawdown", f"{benchmark_metrics.max_drawdown:.2f}%",
-                               f"${benchmark_metrics.max_drawdown * result.initial_capital / 100:,.0f} on {result.start_date}")
+                               f"${abs(benchmark_metrics.max_drawdown * used_capital / 100):,.0f} on {result.start_date}")
             _display_metric_row("Return on used capital", f"{benchmark_metrics.total_return_pct:.2f}%",
-                               f"${result.initial_capital:,.0f} used capital")
+                               f"${used_capital:,.0f} used capital")
             _display_metric_row("MAR ratio", f"{benchmark_metrics.calmar_ratio:.2f}", "")
         else:
             st.info("Benchmark metrics not available")
@@ -140,6 +177,9 @@ def _display_summary_tab(
 
 def _display_details_tab(result: BacktestResult, transactions_df: pd.DataFrame):
     """Display details tab with trade-by-trade profit/loss and detailed stats."""
+    # Calculate used capital
+    used_capital = _calculate_used_capital(result, transactions_df)
+
     # Trade-by-trade profit/loss chart
     st.subheader("Profit/Loss for All Trades")
     _display_trade_pnl_chart(transactions_df)
@@ -173,7 +213,7 @@ def _display_details_tab(result: BacktestResult, transactions_df: pd.DataFrame):
 
     with col3:
         st.metric("Total profit/loss", f"${result.metrics.total_return:,.2f}")
-        st.metric("Used capital", f"${result.initial_capital:,.0f}")
+        st.metric("Used capital", f"${used_capital:,.0f}")
         st.metric("Return on used capital", f"{result.metrics.total_return_pct:.2f}%")
         st.metric("CAGR", f"{result.metrics.cagr:.2f}%")
         st.metric("Total premium", f"${premium_collected:,.2f}")
@@ -183,6 +223,9 @@ def _display_details_tab(result: BacktestResult, transactions_df: pd.DataFrame):
 
 def _display_logs_tab(result: BacktestResult, transactions_df: pd.DataFrame):
     """Display logs tab with transaction table."""
+    # Calculate used capital
+    used_capital = _calculate_used_capital(result, transactions_df)
+
     st.subheader("Trades")
 
     # Add download button
@@ -213,7 +256,7 @@ def _display_logs_tab(result: BacktestResult, transactions_df: pd.DataFrame):
             st.metric("Total profit/loss", f"${result.metrics.total_return:,.2f}")
 
         with col4:
-            st.metric("Used capital", f"${result.initial_capital:,.0f}")
+            st.metric("Used capital", f"${used_capital:,.0f}")
 
         st.markdown("---")
 
@@ -229,6 +272,10 @@ def _display_logs_tab(result: BacktestResult, transactions_df: pd.DataFrame):
 
 def _display_dual_axis_chart(result: BacktestResult, benchmark_curve: EquityCurve):
     """Display dual-axis chart with strategy equity and underlying price."""
+    # Calculate used capital for normalization
+    used_capital = _calculate_used_capital(result, pd.DataFrame())
+    unused_capital = result.initial_capital - used_capital
+
     # Prepare data
     equity_df = result.equity_curve.to_dataframe()
     benchmark_df = benchmark_curve.to_dataframe()
@@ -253,32 +300,37 @@ def _display_dual_axis_chart(result: BacktestResult, benchmark_curve: EquityCurv
         st.error("Benchmark data missing required columns")
         return
 
-    # Create figure with secondary y-axis
-    fig = make_subplots(specs=[[{"secondary_y": True}]])
+    # Normalize wheel strategy equity by subtracting unused capital
+    # This makes both strategies start from the same capital base
+    equity_df["total_adjusted"] = equity_df["total"] - unused_capital
 
-    # Add strategy equity (left axis)
-    fig.add_trace(
-        go.Scatter(
-            x=equity_df["date"],
-            y=equity_df["total"],
-            name="Strategy profit / loss",
-            line=dict(color="#FF6B35", width=2),
-            mode="lines",
-        ),
-        secondary_y=False,
-    )
+    # Create figure with single y-axis
+    fig = go.Figure()
 
-    # Add underlying price (right axis)
+    # Add buy & hold equity (gray, in background)
     fig.add_trace(
         go.Scatter(
             x=benchmark_df["date"],
             y=benchmark_df["total"],
-            name=f"{result.ticker} end of day price",
-            line=dict(color="#666666", width=2),
+            name="Buy & Hold",
+            line=dict(color="#999999", width=2),
             mode="lines",
-        ),
-        secondary_y=True,
+        )
     )
+
+    # Add strategy equity (orange, in foreground) - using adjusted values
+    fig.add_trace(
+        go.Scatter(
+            x=equity_df["date"],
+            y=equity_df["total_adjusted"],
+            name="Wheel Strategy",
+            line=dict(color="#FF6B35", width=2),
+            mode="lines",
+        )
+    )
+
+    # Add trade markers from events (using adjusted equity)
+    _add_trade_markers(fig, result, equity_df, use_adjusted=True)
 
     # Update layout
     fig.update_layout(
@@ -296,8 +348,7 @@ def _display_dual_axis_chart(result: BacktestResult, benchmark_curve: EquityCurv
 
     # Update axes
     fig.update_xaxes(title_text="Date", showgrid=True, gridcolor="#f0f0f0")
-    fig.update_yaxes(title_text="Strategy ($)", secondary_y=False, showgrid=True, gridcolor="#f0f0f0")
-    fig.update_yaxes(title_text=f"{result.ticker} Price ($)", secondary_y=True, showgrid=False)
+    fig.update_yaxes(title_text="Portfolio Value ($)", showgrid=True, gridcolor="#f0f0f0")
 
     st.plotly_chart(fig, use_container_width=True)
 
@@ -357,6 +408,222 @@ def _display_trade_pnl_chart(transactions_df: pd.DataFrame):
     fig.update_yaxes(showgrid=True, gridcolor="#f0f0f0", zeroline=True, zerolinecolor="#666")
 
     st.plotly_chart(fig, use_container_width=True)
+
+
+def _calculate_used_capital(result: BacktestResult, transactions_df: pd.DataFrame) -> float:
+    """Calculate the actual capital used by the wheel strategy.
+
+    For a fair comparison, we use the capital needed to secure the first contract,
+    not the full initial capital.
+
+    Args:
+        result: Backtest result
+        transactions_df: Transaction dataframe
+
+    Returns:
+        Capital actually used for trading
+    """
+    # Try to get from summary first
+    if "used_capital" in result.summary:
+        return result.summary["used_capital"]
+
+    # Otherwise, calculate from first trade
+    # For cash-secured put: capital = strike × 100
+    # For the wheel strategy with 1 contract, this is the capital at risk
+    if not transactions_df.empty:
+        # Find the first sell_put transaction
+        first_put = transactions_df[transactions_df["action"].str.contains("sell", case=False, na=False)]
+        if not first_put.empty:
+            # Extract strike from instrument description if available
+            # Or use a reasonable estimate based on initial capital
+            # For simplicity, use the capital shown in the first transaction
+            first_row = first_put.iloc[0]
+            # The cash_after tells us how much capital we had after the trade
+            # But we want the capital before, which is approximately initial_capital
+            pass
+
+    # Fallback: check events for first put strike
+    for event in result.events:
+        if event.event_type == "sell_put":
+            strike = event.details.get("strike", 0)
+            if strike > 0:
+                # Capital needed for cash-secured put = strike × 100
+                return strike * 100
+
+    # Fallback to initial capital if we can't determine used capital
+    return result.initial_capital
+
+
+def _add_trade_markers(fig: go.Figure, result: BacktestResult, equity_df: pd.DataFrame, use_adjusted: bool = False):
+    """Add markers for trade events on the chart.
+
+    Args:
+        fig: Plotly figure to add markers to
+        result: Backtest result with events
+        equity_df: Equity dataframe for getting y-values
+        use_adjusted: Whether to use adjusted equity values
+    """
+    # Convert equity_df date to datetime for matching
+    equity_df["date"] = pd.to_datetime(equity_df["date"])
+
+    # Determine which equity column to use
+    equity_col = "total_adjusted" if use_adjusted and "total_adjusted" in equity_df.columns else "total"
+
+    # Extract trade events
+    put_sales = []
+    call_sales = []
+    put_assignments = []
+    call_assignments = []
+
+    for event in result.events:
+        event_date = pd.Timestamp(event.date)
+
+        # Find equity value at this date
+        equity_at_date = equity_df[equity_df["date"] == event_date]
+        if equity_at_date.empty:
+            continue
+
+        equity_value = equity_at_date.iloc[0][equity_col]
+
+        # Extract details
+        details = event.details
+        strike = details.get("strike", "N/A")
+        premium = details.get("premium", 0.0)
+        dte = details.get("dte", "N/A")
+
+        # Categorize events
+        if event.event_type == "sell_put":
+            put_sales.append({
+                "date": event_date,
+                "equity": equity_value,
+                "strike": strike,
+                "premium": premium,
+                "dte": dte,
+            })
+        elif event.event_type == "sell_call":
+            call_sales.append({
+                "date": event_date,
+                "equity": equity_value,
+                "strike": strike,
+                "premium": premium,
+                "dte": dte,
+            })
+        elif event.event_type == "put_assigned":
+            put_assignments.append({
+                "date": event_date,
+                "equity": equity_value,
+                "strike": strike,
+            })
+        elif event.event_type == "call_assigned":
+            call_assignments.append({
+                "date": event_date,
+                "equity": equity_value,
+                "strike": strike,
+            })
+
+    # Add put sales markers (red circles)
+    if put_sales:
+        put_df = pd.DataFrame(put_sales)
+        fig.add_trace(
+            go.Scatter(
+                x=put_df["date"],
+                y=put_df["equity"],
+                mode="markers",
+                name="Sell Put",
+                marker=dict(
+                    size=10,
+                    color="#FF1744",
+                    symbol="circle",
+                    line=dict(width=2, color="white"),
+                ),
+                hovertemplate=(
+                    "<b>Sell Put</b><br>"
+                    "Date: %{x}<br>"
+                    "Strike: $%{customdata[0]:.2f}<br>"
+                    "Premium: $%{customdata[1]:.2f}<br>"
+                    "DTE: %{customdata[2]}<br>"
+                    "<extra></extra>"
+                ),
+                customdata=put_df[["strike", "premium", "dte"]].values,
+            )
+        )
+
+    # Add call sales markers (green circles)
+    if call_sales:
+        call_df = pd.DataFrame(call_sales)
+        fig.add_trace(
+            go.Scatter(
+                x=call_df["date"],
+                y=call_df["equity"],
+                mode="markers",
+                name="Sell Call",
+                marker=dict(
+                    size=10,
+                    color="#00C853",
+                    symbol="circle",
+                    line=dict(width=2, color="white"),
+                ),
+                hovertemplate=(
+                    "<b>Sell Call</b><br>"
+                    "Date: %{x}<br>"
+                    "Strike: $%{customdata[0]:.2f}<br>"
+                    "Premium: $%{customdata[1]:.2f}<br>"
+                    "DTE: %{customdata[2]}<br>"
+                    "<extra></extra>"
+                ),
+                customdata=call_df[["strike", "premium", "dte"]].values,
+            )
+        )
+
+    # Add put assignment markers (red triangles down)
+    if put_assignments:
+        put_assign_df = pd.DataFrame(put_assignments)
+        fig.add_trace(
+            go.Scatter(
+                x=put_assign_df["date"],
+                y=put_assign_df["equity"],
+                mode="markers",
+                name="Put Assigned",
+                marker=dict(
+                    size=12,
+                    color="#FF1744",
+                    symbol="triangle-down",
+                    line=dict(width=2, color="white"),
+                ),
+                hovertemplate=(
+                    "<b>Put Assigned</b><br>"
+                    "Date: %{x}<br>"
+                    "Strike: $%{customdata[0]:.2f}<br>"
+                    "<extra></extra>"
+                ),
+                customdata=put_assign_df[["strike"]].values,
+            )
+        )
+
+    # Add call assignment markers (green triangles up)
+    if call_assignments:
+        call_assign_df = pd.DataFrame(call_assignments)
+        fig.add_trace(
+            go.Scatter(
+                x=call_assign_df["date"],
+                y=call_assign_df["equity"],
+                mode="markers",
+                name="Call Assigned",
+                marker=dict(
+                    size=12,
+                    color="#00C853",
+                    symbol="triangle-up",
+                    line=dict(width=2, color="white"),
+                ),
+                hovertemplate=(
+                    "<b>Call Assigned</b><br>"
+                    "Date: %{x}<br>"
+                    "Strike: $%{customdata[0]:.2f}<br>"
+                    "<extra></extra>"
+                ),
+                customdata=call_assign_df[["strike"]].values,
+            )
+        )
 
 
 def _display_metric_card(label: str, value: str, color: str = "black"):
