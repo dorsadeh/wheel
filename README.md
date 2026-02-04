@@ -13,6 +13,9 @@ docker compose run wheel run SPY --capital 100000 --dte 30 --delta 0.20
 
 # Run tests
 docker compose run test
+
+# Run web UI
+docker compose up ui              # Start at http://localhost:8501
 ```
 
 ## What is the Wheel Strategy?
