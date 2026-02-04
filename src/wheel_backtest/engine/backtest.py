@@ -111,7 +111,9 @@ class WheelBacktest:
         self.selector = OptionSelector(
             dte_target=config.dte_target,
             dte_min=config.dte_min,
-            delta_target=config.delta_target,  # Use actual delta for strike selection
+            delta_target=config.delta_target,  # Legacy fallback
+            put_delta=config.effective_put_delta,
+            call_delta=config.effective_call_delta,
         )
         self.strategy = WheelStrategy(
             portfolio=self.portfolio,

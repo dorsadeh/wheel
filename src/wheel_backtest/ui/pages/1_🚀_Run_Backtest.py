@@ -79,13 +79,22 @@ def main():
                 help="Minimum DTE before rolling or closing",
             )
 
-            delta_target = st.slider(
-                "Target Delta",
+            put_delta = st.slider(
+                "Put Delta",
                 min_value=0.05,
                 max_value=0.50,
                 value=0.20,
                 step=0.05,
-                help="Target delta for strike selection (lower = further OTM)",
+                help="Target delta for short puts (lower = further OTM)",
+            )
+
+            call_delta = st.slider(
+                "Call Delta",
+                min_value=0.05,
+                max_value=0.50,
+                value=0.20,
+                step=0.05,
+                help="Target delta for short calls (lower = further OTM)",
             )
 
             commission = st.number_input(
@@ -139,7 +148,8 @@ def main():
                     initial_capital=initial_capital,
                     dte_target=dte_target,
                     dte_min=dte_min,
-                    delta_target=delta_target,
+                    put_delta=put_delta,
+                    call_delta=call_delta,
                     commission_per_contract=commission,
                     data_provider="philippdubach",
                     cache_dir=get_cache_dir(),

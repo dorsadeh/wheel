@@ -28,7 +28,13 @@ class BacktestConfig(BaseSettings):
     dte_target: int = Field(default=30, ge=1, description="Target days to expiration")
     dte_min: int = Field(default=7, ge=1, description="Minimum DTE to consider")
     delta_target: float = Field(
-        default=0.20, gt=0, lt=1, description="Target delta for short options"
+        default=0.20, gt=0, lt=1, description="Target delta for short options (legacy, use put_delta/call_delta)"
+    )
+    put_delta: float | None = Field(
+        default=None, gt=0, lt=1, description="Target delta for short puts (overrides delta_target)"
+    )
+    call_delta: float | None = Field(
+        default=None, gt=0, lt=1, description="Target delta for short calls (overrides delta_target)"
     )
     contract_multiplier: int = Field(default=100, gt=0, description="Shares per contract")
 
@@ -67,6 +73,16 @@ class BacktestConfig(BaseSettings):
         if v is not None and start is not None and v < start:
             raise ValueError("end_date must be after start_date")
         return v
+
+    @property
+    def effective_put_delta(self) -> float:
+        """Get the effective put delta (put_delta if set, else delta_target)."""
+        return self.put_delta if self.put_delta is not None else self.delta_target
+
+    @property
+    def effective_call_delta(self) -> float:
+        """Get the effective call delta (call_delta if set, else delta_target)."""
+        return self.call_delta if self.call_delta is not None else self.delta_target
 
 
 def load_config(**overrides) -> BacktestConfig:

@@ -106,6 +106,71 @@ class TestBacktestConfig:
         )
         assert config.delta_target == 0.15
 
+    def test_separate_put_call_deltas(self, temp_dir: Path) -> None:
+        """Test separate put and call delta configuration."""
+        config = BacktestConfig(
+            put_delta=0.25,
+            call_delta=0.15,
+            cache_dir=temp_dir / "cache",
+            output_dir=temp_dir / "output",
+        )
+        assert config.put_delta == 0.25
+        assert config.call_delta == 0.15
+
+    def test_effective_delta_with_separate_values(self, temp_dir: Path) -> None:
+        """Test effective delta properties when separate deltas are set."""
+        config = BacktestConfig(
+            delta_target=0.20,
+            put_delta=0.30,
+            call_delta=0.15,
+            cache_dir=temp_dir / "cache",
+            output_dir=temp_dir / "output",
+        )
+        assert config.effective_put_delta == 0.30
+        assert config.effective_call_delta == 0.15
+
+    def test_effective_delta_fallback_to_target(self, temp_dir: Path) -> None:
+        """Test effective delta falls back to delta_target when not set."""
+        config = BacktestConfig(
+            delta_target=0.20,
+            cache_dir=temp_dir / "cache",
+            output_dir=temp_dir / "output",
+        )
+        assert config.effective_put_delta == 0.20
+        assert config.effective_call_delta == 0.20
+
+    def test_put_delta_validation(self, temp_dir: Path) -> None:
+        """Test that put_delta must be between 0 and 1."""
+        with pytest.raises(ValueError):
+            BacktestConfig(
+                put_delta=0,
+                cache_dir=temp_dir / "cache",
+                output_dir=temp_dir / "output",
+            )
+
+        with pytest.raises(ValueError):
+            BacktestConfig(
+                put_delta=1.5,
+                cache_dir=temp_dir / "cache",
+                output_dir=temp_dir / "output",
+            )
+
+    def test_call_delta_validation(self, temp_dir: Path) -> None:
+        """Test that call_delta must be between 0 and 1."""
+        with pytest.raises(ValueError):
+            BacktestConfig(
+                call_delta=0,
+                cache_dir=temp_dir / "cache",
+                output_dir=temp_dir / "output",
+            )
+
+        with pytest.raises(ValueError):
+            BacktestConfig(
+                call_delta=1.5,
+                cache_dir=temp_dir / "cache",
+                output_dir=temp_dir / "output",
+            )
+
     def test_directory_creation(self, temp_dir: Path) -> None:
         """Test that directories are created if they don't exist."""
         cache_path = temp_dir / "new_cache"

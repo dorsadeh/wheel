@@ -85,7 +85,21 @@ def main(ctx: click.Context, cache_dir: Path, output_dir: Path) -> None:
     "delta_target",
     type=float,
     default=0.20,
-    help="Target delta for short options",
+    help="Target delta for short options (fallback if put/call deltas not specified)",
+)
+@click.option(
+    "--put-delta",
+    "put_delta",
+    type=float,
+    default=None,
+    help="Target delta for short puts (overrides --delta)",
+)
+@click.option(
+    "--call-delta",
+    "call_delta",
+    type=float,
+    default=None,
+    help="Target delta for short calls (overrides --delta)",
 )
 @click.option(
     "--commission",
@@ -113,6 +127,8 @@ def run(
     initial_capital: float,
     dte_target: int,
     delta_target: float,
+    put_delta: Optional[float],
+    call_delta: Optional[float],
     commission_per_contract: float,
     charts: bool,
     benchmark: bool,
@@ -128,6 +144,8 @@ def run(
         initial_capital=initial_capital,
         dte_target=dte_target,
         delta_target=delta_target,
+        put_delta=put_delta,
+        call_delta=call_delta,
         commission_per_contract=commission_per_contract,
         cache_dir=ctx.obj["cache_dir"],
         output_dir=ctx.obj["output_dir"],
@@ -557,7 +575,14 @@ def _display_config(config: BacktestConfig) -> None:
     table.add_row("Initial Capital", f"${config.initial_capital:,.2f}")
     table.add_row("DTE Target", str(config.dte_target))
     table.add_row("DTE Minimum", str(config.dte_min))
-    table.add_row("Delta Target", f"{config.delta_target:.2f}")
+
+    # Show separate deltas if specified, otherwise show legacy delta_target
+    if config.put_delta is not None or config.call_delta is not None:
+        table.add_row("Put Delta", f"{config.effective_put_delta:.2f}")
+        table.add_row("Call Delta", f"{config.effective_call_delta:.2f}")
+    else:
+        table.add_row("Delta Target", f"{config.delta_target:.2f}")
+
     table.add_row("Contract Multiplier", str(config.contract_multiplier))
     table.add_row("Commission", f"${config.commission_per_contract:.2f}")
     table.add_row("Data Provider", config.data_provider)

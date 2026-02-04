@@ -95,6 +95,8 @@ class OptionSelector:
         dte_target: int = 30,
         dte_min: int = 7,
         delta_target: Optional[float] = None,
+        put_delta: Optional[float] = None,
+        call_delta: Optional[float] = None,
         otm_pct: Optional[float] = None,
     ):
         """Initialize selector.
@@ -102,17 +104,24 @@ class OptionSelector:
         Args:
             dte_target: Target days to expiration
             dte_min: Minimum DTE to consider
-            delta_target: Target delta (e.g., 0.20 for 20 delta, auto-signs for puts/calls)
+            delta_target: Target delta for both puts and calls (legacy, use put_delta/call_delta)
+            put_delta: Target delta for puts (overrides delta_target)
+            call_delta: Target delta for calls (overrides delta_target)
             otm_pct: Target OTM percentage (0.05 = 5%), used as fallback if delta unavailable
         """
         self.dte_target = dte_target
         self.dte_min = dte_min
         self.delta_target = delta_target
 
+        # Set effective deltas for puts and calls
+        self.put_delta = put_delta if put_delta is not None else delta_target
+        self.call_delta = call_delta if call_delta is not None else delta_target
+
         # Set default OTM percentage based on delta if not provided
-        if otm_pct is None and delta_target is not None:
+        effective_delta = delta_target if delta_target is not None else (put_delta or call_delta or 0.20)
+        if otm_pct is None and effective_delta is not None:
             # Rough approximation: 0.20 delta ≈ 5% OTM
-            self.otm_pct = delta_target * 0.25
+            self.otm_pct = effective_delta * 0.25
         else:
             self.otm_pct = otm_pct if otm_pct is not None else 0.05
 
@@ -316,12 +325,15 @@ class OptionSelector:
         # Select strike - try delta first, fall back to OTM percentage
         selected_strike = None
 
+        # Determine which delta to use based on option type
+        target_delta = self.put_delta if option_type == OptionType.PUT else self.call_delta
+
         # Try delta-based selection if configured and data available
-        if self.delta_target is not None:
+        if target_delta is not None:
             selected_strike = self.select_strike_by_delta(
                 options_df=exp_chain,
                 option_type=option_type,
-                target_delta=self.delta_target,
+                target_delta=target_delta,
                 underlying_price=underlying_price,
                 cost_basis=cost_basis,
             )

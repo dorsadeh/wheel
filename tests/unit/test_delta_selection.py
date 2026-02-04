@@ -48,6 +48,36 @@ class TestDeltaBasedSelection:
         # OTM pct should be auto-calculated from delta
         assert selector.otm_pct == pytest.approx(0.05)
 
+    def test_selector_with_separate_deltas(self) -> None:
+        """Test OptionSelector initialization with separate put and call deltas."""
+        selector = OptionSelector(
+            dte_target=30,
+            dte_min=7,
+            put_delta=0.30,
+            call_delta=0.15,
+        )
+
+        assert selector.put_delta == 0.30
+        assert selector.call_delta == 0.15
+
+    def test_selector_separate_deltas_override_target(self) -> None:
+        """Test that separate deltas override delta_target."""
+        selector = OptionSelector(
+            delta_target=0.20,
+            put_delta=0.30,
+            call_delta=0.15,
+        )
+
+        assert selector.put_delta == 0.30
+        assert selector.call_delta == 0.15
+
+    def test_selector_fallback_to_delta_target(self) -> None:
+        """Test that separate deltas fall back to delta_target when not set."""
+        selector = OptionSelector(delta_target=0.25)
+
+        assert selector.put_delta == 0.25
+        assert selector.call_delta == 0.25
+
     def test_select_put_by_delta(self, options_with_delta: pd.DataFrame) -> None:
         """Test selecting put strike by delta."""
         selector = OptionSelector(delta_target=0.20)
@@ -238,3 +268,32 @@ class TestDeltaBasedSelection:
         """Test that explicit OTM pct overrides delta-based default."""
         selector = OptionSelector(delta_target=0.20, otm_pct=0.10)
         assert selector.otm_pct == 0.10  # Explicit value used
+
+    def test_separate_deltas_for_puts_and_calls(self, options_with_delta: pd.DataFrame) -> None:
+        """Test that different deltas are used for puts vs calls."""
+        selector = OptionSelector(
+            dte_target=30,
+            dte_min=7,
+            put_delta=0.30,  # Higher delta for puts (closer to ATM)
+            call_delta=0.15,  # Lower delta for calls (further OTM)
+        )
+
+        # Test put selection with 0.30 delta
+        put_result = selector.select_option_from_chain(
+            chain=options_with_delta,
+            option_type=OptionType.PUT,
+            underlying_price=460.0,
+            trade_date=date(2024, 1, 2),
+        )
+        assert put_result is not None
+        assert put_result["strike"] == 445.0  # Delta = -0.28, closest to -0.30
+
+        # Test call selection with 0.15 delta
+        call_result = selector.select_option_from_chain(
+            chain=options_with_delta,
+            option_type=OptionType.CALL,
+            underlying_price=460.0,
+            trade_date=date(2024, 1, 2),
+        )
+        assert call_result is not None
+        assert call_result["strike"] == 470.0  # Delta = 0.14, closest to 0.15
