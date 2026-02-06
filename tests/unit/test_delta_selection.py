@@ -126,25 +126,6 @@ class TestDeltaBasedSelection:
         # Should select strike with delta closest to -0.30
         assert strike == 445.0  # Delta = -0.28
 
-    def test_select_call_with_cost_basis(self, options_with_delta: pd.DataFrame) -> None:
-        """Test that cost basis is respected for covered calls."""
-        selector = OptionSelector(delta_target=0.20)
-
-        call_chain = options_with_delta[options_with_delta["option_type"] == "call"]
-
-        # Cost basis at 478, should not select strikes below it
-        strike = selector.select_strike_by_delta(
-            options_df=call_chain,
-            option_type=OptionType.CALL,
-            target_delta=0.20,
-            underlying_price=460.0,
-            cost_basis=478.0,
-        )
-
-        # Should select 480 (delta=0.28) instead of 475 (delta=0.20)
-        # because cost basis constraint filters out 475
-        assert strike == 480.0
-
     def test_fallback_to_otm_when_no_delta(self, options_without_delta: pd.DataFrame) -> None:
         """Test fallback to OTM selection when delta unavailable."""
         selector = OptionSelector(

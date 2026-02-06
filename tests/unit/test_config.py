@@ -171,22 +171,25 @@ class TestBacktestConfig:
                 output_dir=temp_dir / "output",
             )
 
-    def test_min_call_strike_at_cost_basis_default(self, temp_dir: Path) -> None:
-        """Test that cost basis protection is enabled by default."""
+    def test_call_entry_protection_defaults(self, temp_dir: Path) -> None:
+        """Test that call entry protection defaults to disabled."""
         config = BacktestConfig(
             cache_dir=temp_dir / "cache",
             output_dir=temp_dir / "output",
         )
-        assert config.min_call_strike_at_cost_basis is True
+        assert config.enable_call_entry_protection is False
+        assert config.call_entry_protection_dollars == 0.0
 
-    def test_min_call_strike_at_cost_basis_can_be_disabled(self, temp_dir: Path) -> None:
-        """Test that cost basis protection can be disabled."""
+    def test_call_entry_protection_can_be_enabled(self, temp_dir: Path) -> None:
+        """Test that call entry protection can be enabled and configured."""
         config = BacktestConfig(
-            min_call_strike_at_cost_basis=False,
+            enable_call_entry_protection=True,
+            call_entry_protection_dollars=2.0,
             cache_dir=temp_dir / "cache",
             output_dir=temp_dir / "output",
         )
-        assert config.min_call_strike_at_cost_basis is False
+        assert config.enable_call_entry_protection is True
+        assert config.call_entry_protection_dollars == 2.0
 
     def test_directory_creation(self, temp_dir: Path) -> None:
         """Test that directories are created if they don't exist."""

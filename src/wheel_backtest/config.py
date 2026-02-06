@@ -44,8 +44,14 @@ class BacktestConfig(BaseSettings):
     )
 
     # Risk management
-    min_call_strike_at_cost_basis: bool = Field(
-        default=True, description="Ensure covered call strikes are at or above assignment cost basis to avoid losses"
+    enable_call_entry_protection: bool = Field(
+        default=False,
+        description="Enable dual protection: (1) wait until underlying recovers, (2) ensure strikes never below cost basis",
+    )
+    call_entry_protection_dollars: float = Field(
+        default=0.0,
+        ge=0,
+        description="Only sell calls when underlying is within this $ of cost basis. Strikes always at or above cost basis (e.g., $50 with $300 assignment: sell when underlying ≥ $250, strikes ≥ $300)",
     )
 
     # Data provider settings

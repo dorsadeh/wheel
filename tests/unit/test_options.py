@@ -87,34 +87,6 @@ class TestOptionSelector:
         selected = selector.select_call_strike(100.0, strikes)
         assert selected == 105.0
 
-    def test_select_call_strike_respects_cost_basis(self) -> None:
-        """Test call strike respects cost basis."""
-        selector = OptionSelector(otm_pct=0.05)
-
-        # Underlying at 100, cost basis at 102
-        # 5% OTM would be 105, but cost basis is only 102
-        strikes = [100.0, 102.0, 105.0, 110.0]
-
-        # Should find closest to max(105, 102) = 105
-        selected = selector.select_call_strike(100.0, strikes, cost_basis=102.0)
-        assert selected == 105.0
-
-        # With higher cost basis of 108
-        selected = selector.select_call_strike(100.0, strikes, cost_basis=108.0)
-        assert selected == 110.0  # Closest to 108
-
-    def test_select_call_strike_can_ignore_cost_basis(self) -> None:
-        """Test call strike can ignore cost basis when protection is disabled."""
-        selector = OptionSelector(otm_pct=0.05, min_call_strike_at_cost_basis=False)
-
-        # Underlying at 100, cost basis at 108
-        # 5% OTM would be 105, cost basis is 108
-        strikes = [100.0, 102.0, 105.0, 110.0]
-
-        # With protection disabled, should select based on OTM only
-        selected = selector.select_call_strike(100.0, strikes, cost_basis=108.0)
-        assert selected == 105.0  # Closest to 5% OTM target (105), ignoring cost basis
-
     def test_select_option_from_chain(self) -> None:
         """Test selecting option from full chain."""
         selector = OptionSelector(dte_target=30, dte_min=7, otm_pct=0.05)

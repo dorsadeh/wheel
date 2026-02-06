@@ -1,5 +1,6 @@
 """Page for configuring and running new backtests."""
 
+import json
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -16,11 +17,86 @@ st.set_page_config(
 )
 
 
+def _get_last_config_path() -> Path:
+    """Get path to last config file."""
+    return get_cache_dir() / ".last_backtest_config.json"
+
+
+def _load_last_config() -> dict | None:
+    """Load the last backtest configuration."""
+    config_path = _get_last_config_path()
+    if config_path.exists():
+        try:
+            with open(config_path, "r") as f:
+                data = json.load(f)
+                # Convert date strings back to date objects
+                if "start_date" in data and data["start_date"]:
+                    data["start_date"] = date.fromisoformat(data["start_date"])
+                if "end_date" in data and data["end_date"]:
+                    data["end_date"] = date.fromisoformat(data["end_date"])
+                return data
+        except Exception:
+            return None
+    return None
+
+
+def _save_last_config(
+    ticker: str,
+    start_date: date,
+    end_date: date,
+    initial_capital: float,
+    dte_target: int,
+    dte_min: int,
+    put_delta: float,
+    call_delta: float,
+    commission: float,
+    enable_call_entry_protection: bool,
+    call_entry_protection_dollars: float,
+) -> None:
+    """Save the last backtest configuration."""
+    config_path = _get_last_config_path()
+    config_data = {
+        "ticker": ticker,
+        "start_date": start_date.isoformat(),
+        "end_date": end_date.isoformat(),
+        "initial_capital": initial_capital,
+        "dte_target": dte_target,
+        "dte_min": dte_min,
+        "put_delta": put_delta,
+        "call_delta": call_delta,
+        "commission": commission,
+        "enable_call_entry_protection": enable_call_entry_protection,
+        "call_entry_protection_dollars": call_entry_protection_dollars,
+    }
+    try:
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(config_path, "w") as f:
+            json.dump(config_data, f, indent=2)
+    except Exception:
+        pass  # Silently fail if we can't save
+
+
 def main():
     """Run backtest page."""
     st.title("🚀 Run New Backtest")
     st.markdown("Configure and execute a wheel strategy backtest")
     st.markdown("---")
+
+    # Load last configuration
+    last_config = _load_last_config()
+
+    # Set defaults from last config or use hardcoded defaults
+    default_ticker = last_config.get("ticker", "SPY") if last_config else "SPY"
+    default_initial_capital = last_config.get("initial_capital", 100_000.0) if last_config else 100_000.0
+    default_start = last_config.get("start_date", date(2023, 1, 1)) if last_config else date(2023, 1, 1)
+    default_end = last_config.get("end_date", date(2023, 12, 31)) if last_config else date(2023, 12, 31)
+    default_dte_target = last_config.get("dte_target", 30) if last_config else 30
+    default_dte_min = last_config.get("dte_min", 7) if last_config else 7
+    default_put_delta = last_config.get("put_delta", 0.30) if last_config else 0.30
+    default_call_delta = last_config.get("call_delta", 0.30) if last_config else 0.30
+    default_commission = last_config.get("commission", 0.0) if last_config else 0.0
+    default_enable_protection = last_config.get("enable_call_entry_protection", False) if last_config else False
+    default_protection_dollars = last_config.get("call_entry_protection_dollars", 0.0) if last_config else 0.0
 
     # Configuration form
     with st.form("backtest_config"):
@@ -31,7 +107,7 @@ def main():
 
             ticker = st.text_input(
                 "Ticker Symbol",
-                value="SPY",
+                value=default_ticker,
                 help="Stock symbol to backtest (e.g., SPY, QQQ, AAPL)",
             ).upper()
 
@@ -39,15 +115,12 @@ def main():
                 "Initial Capital ($)",
                 min_value=10_000.0,
                 max_value=10_000_000.0,
-                value=100_000.0,
+                value=default_initial_capital,
                 step=10_000.0,
                 help="Starting capital for the backtest",
             )
 
             st.subheader("Date Range")
-
-            default_start = date(2023, 1, 1)
-            default_end = date(2023, 12, 31)
 
             start_date = st.date_input(
                 "Start Date",
@@ -68,7 +141,7 @@ def main():
                 "Target Days to Expiration (DTE)",
                 min_value=7,
                 max_value=90,
-                value=30,
+                value=default_dte_target,
                 help="Preferred days until option expiration",
             )
 
@@ -76,7 +149,7 @@ def main():
                 "Minimum DTE",
                 min_value=1,
                 max_value=30,
-                value=7,
+                value=default_dte_min,
                 help="Minimum DTE before rolling or closing",
             )
 
@@ -84,7 +157,7 @@ def main():
                 "Put Delta",
                 min_value=0.05,
                 max_value=0.50,
-                value=0.20,
+                value=default_put_delta,
                 step=0.05,
                 help="Target delta for short puts (lower = further OTM)",
             )
@@ -93,7 +166,7 @@ def main():
                 "Call Delta",
                 min_value=0.05,
                 max_value=0.50,
-                value=0.20,
+                value=default_call_delta,
                 step=0.05,
                 help="Target delta for short calls (lower = further OTM)",
             )
@@ -102,19 +175,29 @@ def main():
                 "Commission per Contract ($)",
                 min_value=0.0,
                 max_value=10.0,
-                value=0.0,
+                value=default_commission,
                 step=0.10,
                 help="Commission charged per option contract",
             )
 
             st.subheader("Risk Management")
 
-            min_call_strike_at_cost_basis = st.checkbox(
-                "Protect against losses on covered calls",
-                value=True,
-                help="Ensure covered call strikes are at or above your assignment cost basis. "
-                     "This prevents locking in losses if calls are assigned. "
-                     "Example: If put assigned at $100, only sell calls at strikes ≥ $100.",
+            enable_call_entry_protection = st.checkbox(
+                "Don't write covered calls when underlying is below assignment price",
+                value=default_enable_protection,
+                help="Provides two protections: (1) Only sells calls when underlying is within the $ threshold below cost basis, "
+                     "(2) Ensures call strikes are always at or above the assignment price to avoid locking in losses.",
+            )
+
+            call_entry_protection_dollars = st.number_input(
+                "Maximum $ below assignment price (only applies if checkbox is enabled)",
+                min_value=0.0,
+                max_value=100.0,
+                value=default_protection_dollars,
+                step=0.50,
+                help="Wait until underlying is within this $ amount of assignment price before selling calls. "
+                     "Strikes will always be at or above assignment price. "
+                     "Example: Assigned at $300 with $50 threshold → sells calls when underlying ≥ $250, but only at strikes ≥ $300.",
             )
 
         st.markdown("---")
@@ -162,7 +245,8 @@ def main():
                     put_delta=put_delta,
                     call_delta=call_delta,
                     commission_per_contract=commission,
-                    min_call_strike_at_cost_basis=min_call_strike_at_cost_basis,
+                    enable_call_entry_protection=enable_call_entry_protection,
+                    call_entry_protection_dollars=call_entry_protection_dollars,
                     data_provider="philippdubach",
                     cache_dir=get_cache_dir(),
                     output_dir=get_output_dir(),
@@ -171,6 +255,21 @@ def main():
                 # Run backtest
                 backtest = WheelBacktest(config)
                 result = backtest.run()
+
+                # Save this configuration for next time
+                _save_last_config(
+                    ticker=ticker,
+                    start_date=start_date,
+                    end_date=end_date,
+                    initial_capital=initial_capital,
+                    dte_target=dte_target,
+                    dte_min=dte_min,
+                    put_delta=put_delta,
+                    call_delta=call_delta,
+                    commission=commission,
+                    enable_call_entry_protection=enable_call_entry_protection,
+                    call_entry_protection_dollars=call_entry_protection_dollars,
+                )
 
                 # Save to history
                 history = get_history()

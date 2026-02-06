@@ -55,6 +55,8 @@ class WheelStrategy:
         selector: OptionSelector,
         contracts_per_trade: int = 1,
         commission_per_contract: float = 0.0,
+        enable_call_entry_protection: bool = False,
+        call_entry_protection_dollars: float = 0.0,
     ):
         """Initialize wheel strategy.
 
@@ -63,11 +65,15 @@ class WheelStrategy:
             selector: Option selector for strike/expiration selection
             contracts_per_trade: Number of contracts per trade
             commission_per_contract: Commission per contract
+            enable_call_entry_protection: If True, avoid selling calls when underlying is too far below cost basis
+            call_entry_protection_dollars: Dollar threshold - don't sell calls if underlying is more than this below cost basis
         """
         self.portfolio = portfolio
         self.selector = selector
         self.contracts_per_trade = contracts_per_trade
         self.commission = commission_per_contract
+        self.enable_call_entry_protection = enable_call_entry_protection
+        self.call_entry_protection_dollars = call_entry_protection_dollars
         self._state = WheelState.SELLING_PUTS
         self._events: list[WheelEvent] = []
         self._cost_basis: Optional[float] = None  # Per-share cost basis when holding stock
@@ -372,6 +378,13 @@ class WheelStrategy:
         """
         events = []
         state_before = self._state
+
+        # Check if underlying price meets protection threshold before selling calls
+        if self.enable_call_entry_protection and self._cost_basis is not None:
+            min_allowed_price = self._cost_basis - self.call_entry_protection_dollars
+            if underlying_price < min_allowed_price:
+                # Underlying is more than protection threshold below cost basis - don't sell calls yet
+                return events
 
         # Select best call to sell
         option_info = self.selector.select_option_from_chain(

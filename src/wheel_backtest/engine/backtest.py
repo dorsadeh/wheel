@@ -70,6 +70,7 @@ class Transaction:
         cash_after: Cash balance after transaction
         shares_after: Share balance after transaction
         equity_after: Total equity after transaction
+        delta: Option delta at time of trade (None for non-option transactions)
         notes: Additional notes
     """
 
@@ -83,6 +84,7 @@ class Transaction:
     cash_after: float
     shares_after: int
     equity_after: float
+    delta: Optional[float] = None
     notes: str = ""
 
 
@@ -114,13 +116,14 @@ class WheelBacktest:
             delta_target=config.delta_target,  # Legacy fallback
             put_delta=config.effective_put_delta,
             call_delta=config.effective_call_delta,
-            min_call_strike_at_cost_basis=config.min_call_strike_at_cost_basis,
         )
         self.strategy = WheelStrategy(
             portfolio=self.portfolio,
             selector=self.selector,
             contracts_per_trade=1,
             commission_per_contract=config.commission_per_contract,
+            enable_call_entry_protection=config.enable_call_entry_protection,
+            call_entry_protection_dollars=config.call_entry_protection_dollars,
         )
 
         # Results tracking
@@ -418,6 +421,7 @@ class WheelBacktest:
             value = 0.0
 
         commission = details.get("commission", 0.0)
+        delta = details.get("delta")  # Will be None for non-option transactions
 
         # Create transaction record
         transaction = Transaction(
@@ -431,6 +435,7 @@ class WheelBacktest:
             cash_after=self.portfolio.cash,
             shares_after=self.portfolio.shares,
             equity_after=self.portfolio.get_equity(underlying_price),
+            delta=delta,
             notes=f"State: {event.state_after.value}",
         )
 

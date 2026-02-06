@@ -490,6 +490,7 @@ def _add_trade_markers(fig: go.Figure, result: BacktestResult, equity_df: pd.Dat
         strike = details.get("strike", "N/A")
         premium = details.get("premium", 0.0)
         dte = details.get("dte", "N/A")
+        delta = details.get("delta", "N/A")
 
         # Categorize events
         if event.event_type == "sell_put":
@@ -498,6 +499,7 @@ def _add_trade_markers(fig: go.Figure, result: BacktestResult, equity_df: pd.Dat
                 "equity": equity_value,
                 "strike": strike,
                 "premium": premium,
+                "delta": delta,
                 "dte": dte,
             })
         elif event.event_type == "sell_call":
@@ -506,6 +508,7 @@ def _add_trade_markers(fig: go.Figure, result: BacktestResult, equity_df: pd.Dat
                 "equity": equity_value,
                 "strike": strike,
                 "premium": premium,
+                "delta": delta,
                 "dte": dte,
             })
         elif event.event_type == "put_assigned":
@@ -541,10 +544,11 @@ def _add_trade_markers(fig: go.Figure, result: BacktestResult, equity_df: pd.Dat
                     "Date: %{x}<br>"
                     "Strike: $%{customdata[0]:.2f}<br>"
                     "Premium: $%{customdata[1]:.2f}<br>"
-                    "DTE: %{customdata[2]}<br>"
+                    "Delta: %{customdata[2]:.2f}<br>"
+                    "DTE: %{customdata[3]}<br>"
                     "<extra></extra>"
                 ),
-                customdata=put_df[["strike", "premium", "dte"]].values,
+                customdata=put_df[["strike", "premium", "delta", "dte"]].values,
             )
         )
 
@@ -568,10 +572,11 @@ def _add_trade_markers(fig: go.Figure, result: BacktestResult, equity_df: pd.Dat
                     "Date: %{x}<br>"
                     "Strike: $%{customdata[0]:.2f}<br>"
                     "Premium: $%{customdata[1]:.2f}<br>"
-                    "DTE: %{customdata[2]}<br>"
+                    "Delta: %{customdata[2]:.2f}<br>"
+                    "DTE: %{customdata[3]}<br>"
                     "<extra></extra>"
                 ),
-                customdata=call_df[["strike", "premium", "dte"]].values,
+                customdata=call_df[["strike", "premium", "delta", "dte"]].values,
             )
         )
 
@@ -678,6 +683,9 @@ def _prepare_transactions_for_display(transactions_df: pd.DataFrame) -> pd.DataF
     if "equity_after" in display_df.columns:
         display_df["equity_after"] = display_df["equity_after"].apply(lambda x: f"${x:,.0f}")
 
+    if "delta" in display_df.columns:
+        display_df["delta"] = display_df["delta"].apply(lambda x: f"{x:.2f}" if pd.notna(x) and x != "N/A" else "N/A")
+
     # Add visual indicator for assignments
     if "action" in display_df.columns:
         display_df["action"] = display_df["action"].apply(_format_action_with_indicator)
@@ -689,6 +697,7 @@ def _prepare_transactions_for_display(transactions_df: pd.DataFrame) -> pd.DataF
         "instrument": "Instrument",
         "quantity": "Qty",
         "price": "Price",
+        "delta": "Delta",
         "value": "Value",
         "commission": "Fee",
         "cash_after": "Cash",

@@ -109,10 +109,17 @@ def main(ctx: click.Context, cache_dir: Path, output_dir: Path) -> None:
     help="Commission per contract in USD",
 )
 @click.option(
-    "--protect-covered-calls/--no-protect-covered-calls",
-    "min_call_strike_at_cost_basis",
-    default=True,
-    help="Ensure covered call strikes are at or above assignment cost basis to avoid losses",
+    "--enable-call-protection/--no-call-protection",
+    "enable_call_entry_protection",
+    default=False,
+    help="Enable dual protection: wait for underlying recovery + ensure strikes never below cost basis",
+)
+@click.option(
+    "--call-protection-dollars",
+    "call_entry_protection_dollars",
+    type=float,
+    default=0.0,
+    help="Only sell calls when underlying within this $ of cost basis. Strikes always ≥ cost basis (e.g., 50.0 with $300 assignment: sell when underlying ≥ $250, strikes ≥ $300)",
 )
 @click.option(
     "--charts/--no-charts",
@@ -136,7 +143,8 @@ def run(
     put_delta: Optional[float],
     call_delta: Optional[float],
     commission_per_contract: float,
-    min_call_strike_at_cost_basis: bool,
+    enable_call_entry_protection: bool,
+    call_entry_protection_dollars: float,
     charts: bool,
     benchmark: bool,
 ) -> None:
@@ -154,7 +162,8 @@ def run(
         put_delta=put_delta,
         call_delta=call_delta,
         commission_per_contract=commission_per_contract,
-        min_call_strike_at_cost_basis=min_call_strike_at_cost_basis,
+        enable_call_entry_protection=enable_call_entry_protection,
+        call_entry_protection_dollars=call_entry_protection_dollars,
         cache_dir=ctx.obj["cache_dir"],
         output_dir=ctx.obj["output_dir"],
     )

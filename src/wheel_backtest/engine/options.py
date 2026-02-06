@@ -98,7 +98,6 @@ class OptionSelector:
         put_delta: Optional[float] = None,
         call_delta: Optional[float] = None,
         otm_pct: Optional[float] = None,
-        min_call_strike_at_cost_basis: bool = True,
     ):
         """Initialize selector.
 
@@ -109,12 +108,10 @@ class OptionSelector:
             put_delta: Target delta for puts (overrides delta_target)
             call_delta: Target delta for calls (overrides delta_target)
             otm_pct: Target OTM percentage (0.05 = 5%), used as fallback if delta unavailable
-            min_call_strike_at_cost_basis: If True, ensure call strikes are at or above cost basis
         """
         self.dte_target = dte_target
         self.dte_min = dte_min
         self.delta_target = delta_target
-        self.min_call_strike_at_cost_basis = min_call_strike_at_cost_basis
 
         # Set effective deltas for puts and calls
         self.put_delta = put_delta if put_delta is not None else delta_target
@@ -218,12 +215,16 @@ class OptionSelector:
         # Target strike is otm_pct above current price
         target_strike = underlying_price * (1 + self.otm_pct)
 
-        # Ensure at least at cost basis (if enabled and cost basis provided)
-        if self.min_call_strike_at_cost_basis and cost_basis is not None:
+        # For covered calls, ensure strike is at least at cost basis
+        if cost_basis is not None:
             target_strike = max(target_strike, cost_basis)
 
         # Find closest strike at or above target
         valid_strikes = [s for s in available_strikes if s >= underlying_price]
+
+        # For covered calls, further filter to strikes at or above cost basis
+        if cost_basis is not None:
+            valid_strikes = [s for s in valid_strikes if s >= cost_basis]
 
         if not valid_strikes:
             return None
@@ -271,8 +272,8 @@ class OptionSelector:
             # Filter to OTM calls (strike > underlying)
             valid_options = valid_options[valid_options["strike"] >= underlying_price]
 
-            # For covered calls, ensure strike >= cost basis (if enabled)
-            if self.min_call_strike_at_cost_basis and cost_basis is not None:
+            # For covered calls, ensure strikes are at or above cost basis
+            if cost_basis is not None:
                 valid_options = valid_options[valid_options["strike"] >= cost_basis]
 
         if valid_options.empty:
