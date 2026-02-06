@@ -133,8 +133,11 @@ class WheelBacktest:
         # Pre-filtered options data (for performance)
         self._options_data_filtered: Optional[pd.DataFrame] = None
 
-    def run(self) -> BacktestResult:
+    def run(self, progress_callback=None) -> BacktestResult:
         """Execute the backtest.
+
+        Args:
+            progress_callback: Optional callback function(current, total, date, stats) for progress updates
 
         Returns:
             BacktestResult with all performance data
@@ -232,6 +235,18 @@ class WheelBacktest:
                     stock_value=stock_value,
                     options_value=options_value,
                 )
+
+                # Call progress callback if provided
+                if progress_callback and idx % 5 == 0:  # Update every 5 days to avoid too many updates
+                    current_equity = self.portfolio.cash + stock_value
+                    stats = {
+                        "date": str(trade_date_obj),
+                        "underlying_price": underlying_price,
+                        "total_trades": len(self.transactions),
+                        "current_equity": current_equity,
+                        "return_pct": ((current_equity - self.config.initial_capital) / self.config.initial_capital) * 100,
+                    }
+                    progress_callback(idx, len(prices), trade_date_obj, stats)
 
                 progress.advance(task)
 

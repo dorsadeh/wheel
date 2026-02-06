@@ -223,127 +223,147 @@ def main():
             return
 
         # Show progress
-        # TODO: Replace spinner with real-time progress tracking
-        # - Add st.progress() bar showing percentage complete
-        # - Add st.status() or st.container() showing:
-        #   * Current phase: "Loading data..." / "Processing 2024-03-15..." / "Calculating metrics..."
-        #   * Progress: "Day 180/252 (71%)"
-        #   * Stats: "Contracts: 45 | Premium: $12,450 | P&L: +8.5%"
-        #   * Timing: "Elapsed: 1m 23s | ETA: 25s"
-        # - Use st.empty() to update progress in real-time
-        # - Consider websocket or polling to get progress from backend
-        with st.spinner(f"Running backtest for {ticker}..."):
-            try:
-                # Create config
-                config = BacktestConfig(
-                    ticker=ticker,
-                    start_date=start_date,
-                    end_date=end_date,
-                    initial_capital=initial_capital,
-                    dte_target=dte_target,
-                    dte_min=dte_min,
-                    put_delta=put_delta,
-                    call_delta=call_delta,
-                    commission_per_contract=commission,
-                    enable_call_entry_protection=enable_call_entry_protection,
-                    call_entry_protection_dollars=call_entry_protection_dollars,
-                    data_provider="philippdubach",
-                    cache_dir=get_cache_dir(),
-                    output_dir=get_output_dir(),
-                )
+        try:
+            # Create config
+            config = BacktestConfig(
+                ticker=ticker,
+                start_date=start_date,
+                end_date=end_date,
+                initial_capital=initial_capital,
+                dte_target=dte_target,
+                dte_min=dte_min,
+                put_delta=put_delta,
+                call_delta=call_delta,
+                commission_per_contract=commission,
+                enable_call_entry_protection=enable_call_entry_protection,
+                call_entry_protection_dollars=call_entry_protection_dollars,
+                data_provider="philippdubach",
+                cache_dir=get_cache_dir(),
+                output_dir=get_output_dir(),
+            )
 
-                # Run backtest
-                backtest = WheelBacktest(config)
-                result = backtest.run()
+            # Create progress display containers
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+            stats_container = st.empty()
 
-                # Save this configuration for next time
-                _save_last_config(
-                    ticker=ticker,
-                    start_date=start_date,
-                    end_date=end_date,
-                    initial_capital=initial_capital,
-                    dte_target=dte_target,
-                    dte_min=dte_min,
-                    put_delta=put_delta,
-                    call_delta=call_delta,
-                    commission=commission,
-                    enable_call_entry_protection=enable_call_entry_protection,
-                    call_entry_protection_dollars=call_entry_protection_dollars,
-                )
+            def update_progress(current, total, current_date, stats):
+                """Update progress display."""
+                progress = current / total
+                progress_bar.progress(progress)
+                status_text.text(f"Processing {current_date} (Day {current}/{total})")
 
-                # Save to history
-                history = get_history()
-                config.output_dir.mkdir(parents=True, exist_ok=True)
+                with stats_container.container():
+                    col1, col2, col3, col4 = st.columns(4)
+                    with col1:
+                        st.metric("Progress", f"{progress * 100:.0f}%")
+                    with col2:
+                        st.metric("Trades", stats.get("total_trades", 0))
+                    with col3:
+                        st.metric("Current Equity", f"${stats.get('current_equity', 0):,.0f}")
+                    with col4:
+                        return_pct = stats.get("return_pct", 0)
+                        st.metric("Return", f"{return_pct:+.2f}%", delta=f"{return_pct:+.2f}%")
 
-                equity_csv_path = config.output_dir / f"{ticker}_backtest_equity.csv"
-                transactions_csv_path = config.output_dir / f"{ticker}_transactions.csv"
+            # Run backtest
+            backtest = WheelBacktest(config)
+            result = backtest.run(progress_callback=update_progress)
 
-                # Save equity curve
-                equity_df = result.equity_curve.to_dataframe()
-                equity_df.to_csv(equity_csv_path)
+            # Clear progress display
+            progress_bar.empty()
+            status_text.empty()
+            stats_container.empty()
 
-                # Save transactions
-                transactions_df = backtest.get_transactions_df()
-                if not transactions_df.empty:
-                    transactions_df.to_csv(transactions_csv_path, index=False)
+            # Show completion message
+            st.success(f"✅ Backtest completed successfully!")
 
-                # Save to history
-                record_id = history.save_backtest(
-                    config=config,
-                    metrics=result.metrics,
-                    start_date=str(result.start_date),
-                    end_date=str(result.end_date),
-                    final_equity=result.final_equity,
-                    total_trades=len(result.events),
-                    equity_csv_path=equity_csv_path,
-                    transactions_csv_path=transactions_csv_path if not transactions_df.empty else None,
-                )
+            # Save this configuration for next time
+            _save_last_config(
+                ticker=ticker,
+                start_date=start_date,
+                end_date=end_date,
+                initial_capital=initial_capital,
+                dte_target=dte_target,
+                dte_min=dte_min,
+                put_delta=put_delta,
+                call_delta=call_delta,
+                commission=commission,
+                enable_call_entry_protection=enable_call_entry_protection,
+                call_entry_protection_dollars=call_entry_protection_dollars,
+            )
 
-                # Display results
-                st.success(f"✅ Backtest complete! Saved as record #{record_id}")
-                st.markdown("---")
+            # Save to history
+            history = get_history()
+            config.output_dir.mkdir(parents=True, exist_ok=True)
 
-                # Display results in tabs (tastytrade-style)
-                display_results_tabs(result, transactions_df)
+            equity_csv_path = config.output_dir / f"{ticker}_backtest_equity.csv"
+            transactions_csv_path = config.output_dir / f"{ticker}_transactions.csv"
 
-                # Performance Timing (optional, at the bottom)
-                if result.timings:
-                    with st.expander("⏱️ Performance Timing"):
-                        timing_data = []
-                        for phase, label in [
-                            ('data_loading', 'Data Loading'),
-                            ('options_fetch', 'Options Chain Fetch'),
-                            ('execution', 'Strategy Execution'),
-                            ('metrics', 'Metrics Calculation'),
-                            ('other', 'Other'),
-                        ]:
-                            if phase in result.timings:
-                                t = result.timings[phase]
-                                pct = (t / result.timings['total']) * 100 if 'total' in result.timings else 0
-                                timing_data.append({
-                                    "Phase": label,
-                                    "Time (s)": f"{t:.2f}",
-                                    "Percentage": f"{pct:.1f}%"
-                                })
+            # Save equity curve
+            equity_df = result.equity_curve.to_dataframe()
+            equity_df.to_csv(equity_csv_path)
 
-                        if 'total' in result.timings:
+            # Save transactions
+            transactions_df = backtest.get_transactions_df()
+            if not transactions_df.empty:
+                transactions_df.to_csv(transactions_csv_path, index=False)
+
+            # Save to history
+            record_id = history.save_backtest(
+                config=config,
+                metrics=result.metrics,
+                start_date=str(result.start_date),
+                end_date=str(result.end_date),
+                final_equity=result.final_equity,
+                total_trades=len(result.events),
+                equity_csv_path=equity_csv_path,
+                transactions_csv_path=transactions_csv_path if not transactions_df.empty else None,
+            )
+
+            # Display results
+            st.markdown("---")
+
+            # Display results in tabs (tastytrade-style)
+            display_results_tabs(result, transactions_df)
+
+            # Performance Timing (optional, at the bottom)
+            if result.timings:
+                with st.expander("⏱️ Performance Timing"):
+                    timing_data = []
+                    for phase, label in [
+                        ('data_loading', 'Data Loading'),
+                        ('options_fetch', 'Options Chain Fetch'),
+                        ('execution', 'Strategy Execution'),
+                        ('metrics', 'Metrics Calculation'),
+                        ('other', 'Other'),
+                    ]:
+                        if phase in result.timings:
+                            t = result.timings[phase]
+                            pct = (t / result.timings['total']) * 100 if 'total' in result.timings else 0
                             timing_data.append({
-                                "Phase": "**Total Time**",
-                                "Time (s)": f"**{result.timings['total']:.2f}**",
-                                "Percentage": "**100%**"
+                                "Phase": label,
+                                "Time (s)": f"{t:.2f}",
+                                "Percentage": f"{pct:.1f}%"
                             })
 
-                        st.dataframe(timing_data, use_container_width=True, hide_index=True)
+                    if 'total' in result.timings:
+                        timing_data.append({
+                            "Phase": "**Total Time**",
+                            "Time (s)": f"**{result.timings['total']:.2f}**",
+                            "Percentage": "**100%**"
+                        })
 
-                        # Highlight if options fetch is slow
-                        if 'options_fetch' in result.timings and result.timings['options_fetch'] > 10:
-                            st.warning(
-                                f"⚠️ Options data loading took {result.timings['options_fetch']:.1f}s "
-                                f"({(result.timings['options_fetch']/result.timings['total'])*100:.0f}% of total time). "
-                                "This is the main bottleneck."
-                            )
+                    st.dataframe(timing_data, use_container_width=True, hide_index=True)
 
-            except Exception as e:
+                    # Highlight if options fetch is slow
+                    if 'options_fetch' in result.timings and result.timings['options_fetch'] > 10:
+                        st.warning(
+                            f"⚠️ Options data loading took {result.timings['options_fetch']:.1f}s "
+                            f"({(result.timings['options_fetch']/result.timings['total'])*100:.0f}% of total time). "
+                            "This is the main bottleneck."
+                        )
+
+        except Exception as e:
                 st.error(f"❌ Error running backtest: {e}")
                 st.exception(e)
 

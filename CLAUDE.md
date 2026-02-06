@@ -6,6 +6,24 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Wheel Strategy Options Backtesting Simulator - a test-driven, Dockerized backtester for the wheel options strategy (sell cash-secured puts → get assigned → sell covered calls → repeat).
 
+## Development Workflow
+
+**IMPORTANT**: Always develop on feature branches, never directly on `main`.
+
+```bash
+# Start new feature
+git checkout -b feature/feature-name
+
+# Work on feature, commit changes
+git add .
+git commit -m "feat: description"
+
+# When ready, merge to main
+git checkout main
+git merge feature/feature-name
+git push origin main
+```
+
 ## Commands
 
 ```bash
