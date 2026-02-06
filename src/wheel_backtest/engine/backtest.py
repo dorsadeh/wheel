@@ -132,6 +132,7 @@ class WheelBacktest:
 
         # Pre-filtered options data (for performance)
         self._options_data_filtered: Optional[pd.DataFrame] = None
+        self._options_by_date: dict = {}  # Fast O(1) lookup by date
 
     def run(self, progress_callback=None) -> BacktestResult:
         """Execute the backtest.
@@ -374,6 +375,19 @@ class WheelBacktest:
             f"{start_date} to {end_date}[/dim]"
         )
 
+        # Create fast lookup index grouped by normalized trade_date
+        # This converts O(n) per-day lookups to O(1)
+        if not self._options_data_filtered.empty:
+            self._options_data_filtered["_normalized_date"] = (
+                self._options_data_filtered["trade_date"].dt.normalize()
+            )
+            self._options_by_date = dict(
+                tuple(self._options_data_filtered.groupby("_normalized_date"))
+            )
+            console.print(f"[dim]Indexed {len(self._options_by_date)} unique trading dates[/dim]")
+        else:
+            self._options_by_date = {}
+
     def _get_options_chain(self, trade_date: date) -> pd.DataFrame:
         """Get options chain for a specific date.
 
@@ -383,13 +397,22 @@ class WheelBacktest:
         Returns:
             DataFrame with options chain data
         """
-        # Use pre-filtered data if available (much faster)
+        # Use indexed lookup if available (O(1) instead of O(n))
+        if hasattr(self, "_options_by_date"):
+            trade_date_ts = pd.Timestamp(trade_date).normalize()
+            chain = self._options_by_date.get(trade_date_ts)
+            if chain is not None:
+                # Drop the helper column and return a copy
+                return chain.drop(columns=["_normalized_date"], errors="ignore").copy()
+            return pd.DataFrame()
+
+        # Fallback: Use pre-filtered data with linear scan (slower)
         if self._options_data_filtered is not None:
             trade_date_ts = pd.Timestamp(trade_date).normalize()
             mask = self._options_data_filtered["trade_date"].dt.normalize() == trade_date_ts
             return self._options_data_filtered[mask].copy()
 
-        # Fallback to provider if pre-filtering not done
+        # Last resort: Fetch from provider
         try:
             return self.options_provider.get_options_chain(
                 ticker=self.config.ticker,
