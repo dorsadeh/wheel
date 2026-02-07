@@ -136,35 +136,17 @@ def main():
                 help="Select a preset date range or choose Custom Range to specify exact dates",
             )
 
-            # Calculate dates based on preset or use custom dates
-            today = date.today()
-            if date_range_preset == "Last 1 Year":
-                start_date = today - timedelta(days=365)
-                end_date = today
-            elif date_range_preset == "Last 2 Years":
-                start_date = today - timedelta(days=730)
-                end_date = today
-            elif date_range_preset == "Last 3 Years":
-                start_date = today - timedelta(days=1095)
-                end_date = today
-            elif date_range_preset == "Last 5 Years":
-                start_date = today - timedelta(days=1825)
-                end_date = today
-            elif date_range_preset == "Last 10 Years":
-                start_date = today - timedelta(days=3650)
-                end_date = today
-            else:  # Custom Range
-                start_date = st.date_input(
-                    "Start Date",
-                    value=default_start,
-                    help="Backtest start date (YYYY-MM-DD)",
-                )
+            start_date = st.date_input(
+                "Start Date (only used for Custom Range)",
+                value=default_start,
+                help="Backtest start date - only applies when 'Custom Range' is selected above",
+            )
 
-                end_date = st.date_input(
-                    "End Date",
-                    value=default_end,
-                    help="Backtest end date (YYYY-MM-DD)",
-                )
+            end_date = st.date_input(
+                "End Date (only used for Custom Range)",
+                value=default_end,
+                help="Backtest end date - only applies when 'Custom Range' is selected above",
+            )
 
         with col2:
             st.subheader("Strategy Parameters")
@@ -245,6 +227,25 @@ def main():
 
     # Run backtest when submitted
     if submit:
+        # Calculate actual dates based on preset
+        today = date.today()
+        if date_range_preset == "Last 1 Year":
+            start_date = today - timedelta(days=365)
+            end_date = today
+        elif date_range_preset == "Last 2 Years":
+            start_date = today - timedelta(days=730)
+            end_date = today
+        elif date_range_preset == "Last 3 Years":
+            start_date = today - timedelta(days=1095)
+            end_date = today
+        elif date_range_preset == "Last 5 Years":
+            start_date = today - timedelta(days=1825)
+            end_date = today
+        elif date_range_preset == "Last 10 Years":
+            start_date = today - timedelta(days=3650)
+            end_date = today
+        # else: Custom Range - use the dates from form inputs
+
         # Validation
         if start_date >= end_date:
             st.error("❌ Start date must be before end date")
