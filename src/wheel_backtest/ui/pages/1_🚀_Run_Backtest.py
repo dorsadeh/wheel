@@ -262,8 +262,9 @@ def main():
 
         # Show progress
         try:
-            # Create config
-            with st.spinner("⚙️ Configuring backtest..."):
+            with st.status("🚀 Running backtest...", expanded=True) as status:
+                # Create config
+                st.write("⚙️ Configuring backtest...")
                 config = BacktestConfig(
                     ticker=ticker,
                     start_date=start_date,
@@ -281,43 +282,39 @@ def main():
                     output_dir=get_output_dir(),
                 )
 
-            # Create progress display containers
-            progress_bar = st.progress(0)
-            status_text = st.empty()
-            stats_container = st.empty()
-
-            def update_progress(current, total, current_date, stats):
-                """Update progress display."""
-                progress = current / total
-                progress_bar.progress(progress)
-                status_text.text(f"Processing {current_date} (Day {current}/{total})")
-
-                with stats_container.container():
-                    col1, col2, col3, col4 = st.columns(4)
-                    with col1:
-                        st.metric("Progress", f"{progress * 100:.0f}%")
-                    with col2:
-                        st.metric("Trades", stats.get("total_trades", 0))
-                    with col3:
-                        st.metric("Current Equity", f"${stats.get('current_equity', 0):,.0f}")
-                    with col4:
-                        return_pct = stats.get("return_pct", 0)
-                        st.metric("Return", f"{return_pct:+.2f}%", delta=f"{return_pct:+.2f}%")
-
-            # Initialize backtest and load data with spinner
-            with st.spinner("📊 Loading options data and preparing backtest..."):
+                # Load data
+                st.write("📊 Loading options data...")
                 backtest = WheelBacktest(config)
 
-            # Run the backtest with progress tracking
-            result = backtest.run(progress_callback=update_progress)
+                # Run backtest
+                st.write("💼 Executing strategy...")
 
-            # Clear progress display
-            progress_bar.empty()
-            status_text.empty()
-            stats_container.empty()
+                # Create progress display containers
+                progress_bar = st.progress(0)
+                status_text = st.empty()
+                stats_container = st.empty()
 
-            # Show completion message
-            st.success(f"✅ Backtest completed successfully!")
+                def update_progress(current, total, current_date, stats):
+                    """Update progress display."""
+                    progress = current / total
+                    progress_bar.progress(progress)
+                    status_text.text(f"Processing {current_date} (Day {current}/{total})")
+
+                    with stats_container.container():
+                        col1, col2, col3, col4 = st.columns(4)
+                        with col1:
+                            st.metric("Progress", f"{progress * 100:.0f}%")
+                        with col2:
+                            st.metric("Trades", stats.get("total_trades", 0))
+                        with col3:
+                            st.metric("Current Equity", f"${stats.get('current_equity', 0):,.0f}")
+                        with col4:
+                            return_pct = stats.get("return_pct", 0)
+                            st.metric("Return", f"{return_pct:+.2f}%", delta=f"{return_pct:+.2f}%")
+
+                result = backtest.run(progress_callback=update_progress)
+
+                status.update(label="✅ Backtest complete!", state="complete")
 
             # Save this configuration for next time
             _save_last_config(
