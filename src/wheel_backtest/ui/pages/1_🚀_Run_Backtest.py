@@ -104,6 +104,12 @@ def main():
 
     # Date Range selector (outside form so it can update dynamically)
     st.subheader("Date Range")
+
+    # Build help text with data availability info
+    help_text = "Select a preset date range or choose Custom Range to specify exact dates"
+    if date.today() > DATA_END_DATE:
+        help_text += f" (Data available: {DATA_START_DATE.strftime('%Y-%m-%d')} to {DATA_END_DATE.strftime('%Y-%m-%d')})"
+
     date_range_preset = st.selectbox(
         "Select Date Range",
         options=["Last 1 Year", "Last 2 Years", "Last 3 Years", "Last 5 Years", "Last 10 Years", "Custom Range"],
@@ -112,7 +118,7 @@ def main():
               2 if default_date_range == "Last 3 Years" else
               3 if default_date_range == "Last 5 Years" else
               4 if default_date_range == "Last 10 Years" else 5,
-        help="Select a preset date range or choose Custom Range to specify exact dates",
+        help=help_text,
     )
 
     # Calculate dates based on preset
@@ -159,10 +165,6 @@ def main():
         start_date = calculated_start
         end_date = calculated_end
         st.caption(f"📅 Date range: {start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}")
-
-        # Show info if data is capped
-        if date.today() > DATA_END_DATE:
-            st.info(f"ℹ️ Data available: {DATA_START_DATE.strftime('%Y-%m-%d')} to {DATA_END_DATE.strftime('%Y-%m-%d')}")
 
     st.markdown("---")
 
