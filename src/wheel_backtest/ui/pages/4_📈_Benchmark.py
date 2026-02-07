@@ -7,7 +7,7 @@ import pandas as pd
 import streamlit as st
 from wheel_backtest.analytics import BuyAndHoldBenchmark
 from wheel_backtest.data import DataCache, YFinanceProvider
-from wheel_backtest.data.philippdubach import AVAILABLE_TICKERS
+from wheel_backtest.data.philippdubach import AVAILABLE_TICKERS, TICKER_CATEGORIES
 from wheel_backtest.ui.utils import get_cache_dir
 
 st.set_page_config(
@@ -30,11 +30,31 @@ def main():
         with col1:
             st.subheader("Settings")
 
+            # Asset class filter
+            asset_class = st.selectbox(
+                "Filter by Asset Class",
+                options=["All"] + sorted(TICKER_CATEGORIES.keys()),
+                index=0,
+                help="Filter available tickers by asset class",
+            )
+
+            # Get filtered ticker list
+            if asset_class == "All":
+                filtered_tickers = AVAILABLE_TICKERS
+            else:
+                filtered_tickers = sorted(TICKER_CATEGORIES[asset_class])
+
+            # Default to SPY if available, otherwise first ticker
+            try:
+                default_index = filtered_tickers.index("SPY")
+            except ValueError:
+                default_index = 0
+
             ticker = st.selectbox(
                 "Ticker Symbol",
-                options=AVAILABLE_TICKERS,
-                index=AVAILABLE_TICKERS.index("SPY"),
-                help=f"Stock symbol to benchmark (104 available tickers with options data 2008-2025)",
+                options=filtered_tickers,
+                index=default_index,
+                help=f"Stock symbol to benchmark ({len(filtered_tickers)} tickers available)",
             )
 
             initial_capital = st.number_input(

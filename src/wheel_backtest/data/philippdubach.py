@@ -40,6 +40,46 @@ AVAILABLE_TICKERS = [
     "VZ", "WFC", "WMT", "XOM",
 ]
 
+# Ticker categorization by asset class/sector
+TICKER_CATEGORIES = {
+    "ETFs": ["SPY", "QQQ", "IWM", "VIX"],
+    "Technology": [
+        "AAPL", "ADBE", "AMD", "AMZN", "AVGO", "CRM", "CSCO", "GOOG", "GOOGL",
+        "IBM", "INTU", "META", "MSFT", "NFLX", "NOW", "NVDA", "ORCL", "PLTR",
+        "PYPL", "QCOM", "TSLA", "TXN", "UBER",
+    ],
+    "Financials": [
+        "AIG", "AXP", "BAC", "BK", "BLK", "BRK.B", "C", "COF", "GS", "JPM",
+        "MA", "MET", "MS", "SCHW", "USB", "V", "WFC",
+    ],
+    "Healthcare": [
+        "ABBV", "ABT", "AMGN", "BMY", "CVS", "GILD", "ISRG", "JNJ", "LLY",
+        "MDT", "MRK", "PFE", "TMO", "UNH",
+    ],
+    "Consumer": [
+        "CL", "COST", "DIS", "HD", "KO", "LOW", "MCD", "MDLZ", "MO", "NKE",
+        "PEP", "PG", "PM", "SBUX", "TGT", "WMT",
+    ],
+    "Industrials": [
+        "BA", "CAT", "DE", "DHR", "EMR", "FDX", "GD", "GE", "HON", "LMT",
+        "MMM", "RTX", "UNP", "UPS",
+    ],
+    "Energy": ["COP", "CVX", "XOM"],
+    "Communication": ["CMCSA", "T", "TMUS", "VZ"],
+    "Utilities": ["DUK", "NEE", "SO"],
+    "Real Estate": ["AMT", "SPG"],
+    "Materials": ["LIN"],
+    "Business Services": ["ACN"],
+    "Automotive": ["GM"],
+    "Hospitality": ["BKNG"],
+}
+
+# Reverse mapping: ticker -> category
+TICKER_TO_CATEGORY = {}
+for category, tickers in TICKER_CATEGORIES.items():
+    for ticker in tickers:
+        TICKER_TO_CATEGORY[ticker] = category
+
 # Standard column mapping from philippdubach format
 COLUMN_MAPPING = {
     "type": "option_type",

@@ -10,6 +10,7 @@ from wheel_backtest.data.philippdubach import (
     AVAILABLE_TICKERS,
     DATA_END_DATE,
     DATA_START_DATE,
+    TICKER_CATEGORIES,
 )
 from wheel_backtest.engine import WheelBacktest
 from wheel_backtest.ui.components import display_results_tabs
@@ -118,18 +119,32 @@ def main():
         with col1:
             st.subheader("Basic Settings")
 
-            # Find index of default ticker in the list
+            # Asset class filter
+            asset_class = st.selectbox(
+                "Filter by Asset Class",
+                options=["All"] + sorted(TICKER_CATEGORIES.keys()),
+                index=0,
+                help="Filter available tickers by asset class",
+            )
+
+            # Get filtered ticker list
+            if asset_class == "All":
+                filtered_tickers = AVAILABLE_TICKERS
+            else:
+                filtered_tickers = sorted(TICKER_CATEGORIES[asset_class])
+
+            # Find index of default ticker in the filtered list
             try:
-                default_ticker_index = AVAILABLE_TICKERS.index(default_ticker)
+                default_ticker_index = filtered_tickers.index(default_ticker)
             except ValueError:
-                # If saved ticker not in list, default to SPY
-                default_ticker_index = AVAILABLE_TICKERS.index("SPY")
+                # If saved ticker not in filtered list, use first ticker
+                default_ticker_index = 0
 
             ticker = st.selectbox(
                 "Ticker Symbol",
-                options=AVAILABLE_TICKERS,
+                options=filtered_tickers,
                 index=default_ticker_index,
-                help=f"Stock symbol to backtest (104 available tickers with options data 2008-2025)",
+                help=f"Stock symbol to backtest ({len(filtered_tickers)} tickers available)",
             )
 
             initial_capital = st.number_input(
