@@ -260,6 +260,10 @@ def main():
             st.error("❌ Please enter a ticker symbol")
             return
 
+        # Show immediate feedback
+        status_placeholder = st.empty()
+        status_placeholder.info("🔄 Initializing backtest and loading data...")
+
         # Show progress
         try:
             # Create config
@@ -287,6 +291,9 @@ def main():
 
             def update_progress(current, total, current_date, stats):
                 """Update progress display."""
+                # Clear the initial status message on first progress update
+                status_placeholder.empty()
+
                 progress = current / total
                 progress_bar.progress(progress)
                 status_text.text(f"Processing {current_date} (Day {current}/{total})")
@@ -303,8 +310,14 @@ def main():
                         return_pct = stats.get("return_pct", 0)
                         st.metric("Return", f"{return_pct:+.2f}%", delta=f"{return_pct:+.2f}%")
 
-            # Run backtest
-            backtest = WheelBacktest(config)
+            # Run backtest with spinner during data loading
+            with st.spinner("Loading options data..."):
+                backtest = WheelBacktest(config)
+
+            # Clear initial status once data is loaded
+            status_placeholder.empty()
+
+            # Run the backtest
             result = backtest.run(progress_callback=update_progress)
 
             # Clear progress display
