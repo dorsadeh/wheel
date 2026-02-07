@@ -23,26 +23,30 @@ def main():
     st.markdown("Calculate and compare buy-and-hold strategy performance")
     st.markdown("---")
 
+    # Asset class filter (outside form for dynamic updates)
+    st.subheader("🎯 Select Ticker")
+    asset_class = st.selectbox(
+        "Filter by Asset Class",
+        options=["All"] + sorted(TICKER_CATEGORIES.keys()),
+        index=0,
+        help="Filter available tickers by asset class",
+        key="asset_class_filter",
+    )
+
+    # Get filtered ticker list
+    if asset_class == "All":
+        filtered_tickers = AVAILABLE_TICKERS
+    else:
+        filtered_tickers = sorted(TICKER_CATEGORIES[asset_class])
+
+    st.markdown("---")
+
     # Configuration form
     with st.form("benchmark_config"):
         col1, col2 = st.columns(2)
 
         with col1:
             st.subheader("Settings")
-
-            # Asset class filter
-            asset_class = st.selectbox(
-                "Filter by Asset Class",
-                options=["All"] + sorted(TICKER_CATEGORIES.keys()),
-                index=0,
-                help="Filter available tickers by asset class",
-            )
-
-            # Get filtered ticker list
-            if asset_class == "All":
-                filtered_tickers = AVAILABLE_TICKERS
-            else:
-                filtered_tickers = sorted(TICKER_CATEGORIES[asset_class])
 
             # Default to SPY if available, otherwise first ticker
             try:
@@ -54,7 +58,7 @@ def main():
                 "Ticker Symbol",
                 options=filtered_tickers,
                 index=default_index,
-                help=f"Stock symbol to benchmark ({len(filtered_tickers)} tickers available)",
+                help=f"Stock symbol to benchmark ({len(filtered_tickers)} tickers in {asset_class})",
             )
 
             initial_capital = st.number_input(

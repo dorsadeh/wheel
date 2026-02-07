@@ -112,26 +112,30 @@ def main():
     if date.today() > DATA_END_DATE:
         help_text += f" (Data available: {DATA_START_DATE.strftime('%Y-%m-%d')} to {DATA_END_DATE.strftime('%Y-%m-%d')})"
 
+    # Asset class filter (outside form for dynamic updates)
+    st.subheader("🎯 Select Ticker")
+    asset_class = st.selectbox(
+        "Filter by Asset Class",
+        options=["All"] + sorted(TICKER_CATEGORIES.keys()),
+        index=0,
+        help="Filter available tickers by asset class",
+        key="asset_class_filter",
+    )
+
+    # Get filtered ticker list
+    if asset_class == "All":
+        filtered_tickers = AVAILABLE_TICKERS
+    else:
+        filtered_tickers = sorted(TICKER_CATEGORIES[asset_class])
+
+    st.markdown("---")
+
     # Configuration form
     with st.form("backtest_config"):
         col1, col2 = st.columns(2)
 
         with col1:
             st.subheader("Basic Settings")
-
-            # Asset class filter
-            asset_class = st.selectbox(
-                "Filter by Asset Class",
-                options=["All"] + sorted(TICKER_CATEGORIES.keys()),
-                index=0,
-                help="Filter available tickers by asset class",
-            )
-
-            # Get filtered ticker list
-            if asset_class == "All":
-                filtered_tickers = AVAILABLE_TICKERS
-            else:
-                filtered_tickers = sorted(TICKER_CATEGORIES[asset_class])
 
             # Find index of default ticker in the filtered list
             try:
@@ -144,7 +148,7 @@ def main():
                 "Ticker Symbol",
                 options=filtered_tickers,
                 index=default_ticker_index,
-                help=f"Stock symbol to backtest ({len(filtered_tickers)} tickers available)",
+                help=f"Stock symbol to backtest ({len(filtered_tickers)} tickers in {asset_class})",
             )
 
             initial_capital = st.number_input(
