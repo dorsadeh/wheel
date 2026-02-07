@@ -42,6 +42,7 @@ def _load_last_config() -> dict | None:
 
 def _save_last_config(
     ticker: str,
+    date_range_preset: str,
     start_date: date,
     end_date: date,
     initial_capital: float,
@@ -57,6 +58,7 @@ def _save_last_config(
     config_path = _get_last_config_path()
     config_data = {
         "ticker": ticker,
+        "date_range_preset": date_range_preset,
         "start_date": start_date.isoformat(),
         "end_date": end_date.isoformat(),
         "initial_capital": initial_capital,
@@ -88,6 +90,7 @@ def main():
     # Set defaults from last config or use hardcoded defaults
     default_ticker = last_config.get("ticker", "SPY") if last_config else "SPY"
     default_initial_capital = last_config.get("initial_capital", 100_000.0) if last_config else 100_000.0
+    default_date_range = last_config.get("date_range_preset", "Last 1 Year") if last_config else "Last 1 Year"
     default_start = last_config.get("start_date", date(2023, 1, 1)) if last_config else date(2023, 1, 1)
     default_end = last_config.get("end_date", date(2023, 12, 31)) if last_config else date(2023, 12, 31)
     default_dte_target = last_config.get("dte_target", 30) if last_config else 30
@@ -122,17 +125,46 @@ def main():
 
             st.subheader("Date Range")
 
-            start_date = st.date_input(
-                "Start Date",
-                value=default_start,
-                help="Backtest start date (YYYY-MM-DD)",
+            date_range_preset = st.selectbox(
+                "Date Range",
+                options=["Last 1 Year", "Last 2 Years", "Last 3 Years", "Last 5 Years", "Last 10 Years", "Custom Range"],
+                index=0 if default_date_range == "Last 1 Year" else
+                      1 if default_date_range == "Last 2 Years" else
+                      2 if default_date_range == "Last 3 Years" else
+                      3 if default_date_range == "Last 5 Years" else
+                      4 if default_date_range == "Last 10 Years" else 5,
+                help="Select a preset date range or choose Custom Range to specify exact dates",
             )
 
-            end_date = st.date_input(
-                "End Date",
-                value=default_end,
-                help="Backtest end date (YYYY-MM-DD)",
-            )
+            # Calculate dates based on preset or use custom dates
+            today = date.today()
+            if date_range_preset == "Last 1 Year":
+                start_date = today - timedelta(days=365)
+                end_date = today
+            elif date_range_preset == "Last 2 Years":
+                start_date = today - timedelta(days=730)
+                end_date = today
+            elif date_range_preset == "Last 3 Years":
+                start_date = today - timedelta(days=1095)
+                end_date = today
+            elif date_range_preset == "Last 5 Years":
+                start_date = today - timedelta(days=1825)
+                end_date = today
+            elif date_range_preset == "Last 10 Years":
+                start_date = today - timedelta(days=3650)
+                end_date = today
+            else:  # Custom Range
+                start_date = st.date_input(
+                    "Start Date",
+                    value=default_start,
+                    help="Backtest start date (YYYY-MM-DD)",
+                )
+
+                end_date = st.date_input(
+                    "End Date",
+                    value=default_end,
+                    help="Backtest end date (YYYY-MM-DD)",
+                )
 
         with col2:
             st.subheader("Strategy Parameters")
@@ -280,6 +312,7 @@ def main():
             # Save this configuration for next time
             _save_last_config(
                 ticker=ticker,
+                date_range_preset=date_range_preset,
                 start_date=start_date,
                 end_date=end_date,
                 initial_capital=initial_capital,
