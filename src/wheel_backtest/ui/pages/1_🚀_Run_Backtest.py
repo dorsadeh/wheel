@@ -6,7 +6,7 @@ from pathlib import Path
 
 import streamlit as st
 from wheel_backtest.config import BacktestConfig
-from wheel_backtest.data.philippdubach import DATA_END_DATE
+from wheel_backtest.data.philippdubach import DATA_END_DATE, DATA_START_DATE
 from wheel_backtest.engine import WheelBacktest
 from wheel_backtest.ui.components import display_results_tabs
 from wheel_backtest.ui.utils import get_cache_dir, get_history, get_output_dir
@@ -162,7 +162,7 @@ def main():
 
         # Show info if data is capped
         if date.today() > DATA_END_DATE:
-            st.info(f"ℹ️ Data available through {DATA_END_DATE.strftime('%Y-%m-%d')}")
+            st.info(f"ℹ️ Data available: {DATA_START_DATE.strftime('%Y-%m-%d')} to {DATA_END_DATE.strftime('%Y-%m-%d')}")
 
     st.markdown("---")
 
