@@ -102,71 +102,10 @@ def main():
     default_enable_protection = last_config.get("enable_call_entry_protection", False) if last_config else False
     default_protection_dollars = last_config.get("call_entry_protection_dollars", 0.0) if last_config else 0.0
 
-    # Date Range selector (outside form so it can update dynamically)
-    st.subheader("Date Range")
-
     # Build help text with data availability info
     help_text = "Select a preset date range or choose Custom Range to specify exact dates"
     if date.today() > DATA_END_DATE:
         help_text += f" (Data available: {DATA_START_DATE.strftime('%Y-%m-%d')} to {DATA_END_DATE.strftime('%Y-%m-%d')})"
-
-    date_range_preset = st.selectbox(
-        "Select Date Range",
-        options=["Last 1 Year", "Last 2 Years", "Last 3 Years", "Last 5 Years", "Last 10 Years", "Custom Range"],
-        index=0 if default_date_range == "Last 1 Year" else
-              1 if default_date_range == "Last 2 Years" else
-              2 if default_date_range == "Last 3 Years" else
-              3 if default_date_range == "Last 5 Years" else
-              4 if default_date_range == "Last 10 Years" else 5,
-        help=help_text,
-    )
-
-    # Calculate dates based on preset
-    # Cap to latest available data (philippdubach dataset ends Dec 16, 2025)
-    today = min(date.today(), DATA_END_DATE)
-
-    if date_range_preset == "Last 1 Year":
-        calculated_start = today - timedelta(days=365)
-        calculated_end = today
-    elif date_range_preset == "Last 2 Years":
-        calculated_start = today - timedelta(days=730)
-        calculated_end = today
-    elif date_range_preset == "Last 3 Years":
-        calculated_start = today - timedelta(days=1095)
-        calculated_end = today
-    elif date_range_preset == "Last 5 Years":
-        calculated_start = today - timedelta(days=1825)
-        calculated_end = today
-    elif date_range_preset == "Last 10 Years":
-        calculated_start = today - timedelta(days=3650)
-        calculated_end = today
-    else:  # Custom Range
-        calculated_start = default_start
-        calculated_end = default_end
-
-    # Show date inputs for Custom Range
-    if date_range_preset == "Custom Range":
-        col1, col2 = st.columns(2)
-        with col1:
-            start_date = st.date_input(
-                "Start Date",
-                value=calculated_start,
-                help="Backtest start date",
-            )
-        with col2:
-            end_date = st.date_input(
-                "End Date",
-                value=calculated_end,
-                max_value=DATA_END_DATE,
-                help=f"Backtest end date (data available through {DATA_END_DATE.strftime('%Y-%m-%d')})",
-            )
-    else:
-        # For presets, just use the calculated dates
-        start_date = calculated_start
-        end_date = calculated_end
-        st.caption(f"📅 Date range: {start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}")
-
-    st.markdown("---")
 
     # Configuration form
     with st.form("backtest_config"):
@@ -188,6 +127,30 @@ def main():
                 value=default_initial_capital,
                 step=10_000.0,
                 help="Starting capital for the backtest",
+            )
+
+            date_range_preset = st.selectbox(
+                "Date Range",
+                options=["Last 1 Year", "Last 2 Years", "Last 3 Years", "Last 5 Years", "Last 10 Years", "Custom Range"],
+                index=0 if default_date_range == "Last 1 Year" else
+                      1 if default_date_range == "Last 2 Years" else
+                      2 if default_date_range == "Last 3 Years" else
+                      3 if default_date_range == "Last 5 Years" else
+                      4 if default_date_range == "Last 10 Years" else 5,
+                help=help_text,
+            )
+
+            start_date = st.date_input(
+                "Start Date",
+                value=default_start,
+                help="Backtest start date",
+            )
+
+            end_date = st.date_input(
+                "End Date",
+                value=default_end,
+                max_value=DATA_END_DATE,
+                help=f"Backtest end date (data available through {DATA_END_DATE.strftime('%Y-%m-%d')})",
             )
 
         with col2:
@@ -269,6 +232,25 @@ def main():
 
     # Run backtest when submitted
     if submit:
+        # Calculate actual dates based on preset selection
+        today = min(date.today(), DATA_END_DATE)
+        if date_range_preset == "Last 1 Year":
+            start_date = today - timedelta(days=365)
+            end_date = today
+        elif date_range_preset == "Last 2 Years":
+            start_date = today - timedelta(days=730)
+            end_date = today
+        elif date_range_preset == "Last 3 Years":
+            start_date = today - timedelta(days=1095)
+            end_date = today
+        elif date_range_preset == "Last 5 Years":
+            start_date = today - timedelta(days=1825)
+            end_date = today
+        elif date_range_preset == "Last 10 Years":
+            start_date = today - timedelta(days=3650)
+            end_date = today
+        # else: Custom Range - use the dates from form inputs
+
         # Validation
         if start_date >= end_date:
             st.error("❌ Start date must be before end date")
