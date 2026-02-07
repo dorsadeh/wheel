@@ -7,6 +7,7 @@ import pandas as pd
 import streamlit as st
 from wheel_backtest.analytics import BuyAndHoldBenchmark
 from wheel_backtest.data import DataCache, YFinanceProvider
+from wheel_backtest.data.philippdubach import AVAILABLE_TICKERS
 from wheel_backtest.ui.utils import get_cache_dir
 
 st.set_page_config(
@@ -29,11 +30,12 @@ def main():
         with col1:
             st.subheader("Settings")
 
-            ticker = st.text_input(
+            ticker = st.selectbox(
                 "Ticker Symbol",
-                value="SPY",
-                help="Stock symbol to benchmark (e.g., SPY, QQQ, AAPL)",
-            ).upper()
+                options=AVAILABLE_TICKERS,
+                index=AVAILABLE_TICKERS.index("SPY"),
+                help=f"Stock symbol to benchmark (104 available tickers with options data 2008-2025)",
+            )
 
             initial_capital = st.number_input(
                 "Initial Capital ($)",

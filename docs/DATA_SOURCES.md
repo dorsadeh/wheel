@@ -40,19 +40,47 @@
 | **Format** | Parquet files |
 | **Hosting** | Cloudflare R2 (fast, reliable CDN) |
 
-### Available Tickers
+### Available Tickers (Complete List)
 
-Includes all major stocks and ETFs commonly used for options trading:
+All 104 tickers available in the philippdubach dataset, organized by sector:
 
-**ETFs:** SPY, QQQ, IWM, DIA, GLD, SLV, TLT, XLF, XLE, EEM, VXX, ARKK
+#### ETFs (4)
+SPY, QQQ, IWM, VIX
 
-**Tech:** AAPL, MSFT, GOOGL, GOOG, AMZN, META, NVDA, AMD, TSLA, INTC, ORCL, CRM, ADBE, NFLX
+#### Technology (23)
+AAPL, ADBE, AMD, AMZN, AVGO, CRM, CSCO, GOOG, GOOGL, IBM, INTU, META, MSFT, NFLX, NOW, NVDA, ORCL, PLTR, PYPL, QCOM, TSLA, TXN, UBER
 
-**Finance:** JPM, BAC, GS, MS, WFC, C, V, MA, AXP, BLK
+#### Financials (17)
+AIG, AXP, BAC, BK, BLK, BRK.B, C, COF, GS, JPM, MA, MET, MS, SCHW, USB, V, WFC
 
-**Healthcare:** JNJ, UNH, PFE, MRK, ABBV, ABT, LLY, TMO, BMY, AMGN
+#### Healthcare & Pharma (14)
+ABBV, ABT, BMY, CVS, GILD, ISRG, JNJ, LLY, MDT, MRK, PFE, TMO, UNH, AMGN
 
-**Other:** XOM, CVX, WMT, HD, MCD, KO, PEP, DIS, NKE, COST, and 60+ more
+#### Consumer (16)
+CL, COST, DIS, HD, KO, LOW, MCD, MDLZ, MO, NKE, PEP, PG, PM, SBUX, TGT, WMT
+
+#### Industrials (14)
+BA, CAT, DE, DHR, EMR, FDX, GD, GE, HON, LMT, MMM, RTX, UNP, UPS
+
+#### Energy (3)
+COP, CVX, XOM
+
+#### Communication Services (4)
+CMCSA, T, TMUS, VZ
+
+#### Utilities (3)
+DUK, NEE, SO
+
+#### Real Estate (2)
+AMT, SPG
+
+#### Materials (1)
+LIN
+
+#### Business Services (1)
+ACN
+
+**Total: 104 tickers** covering major US equities and ETFs with liquid options markets
 
 ### Data Fields
 

@@ -6,7 +6,11 @@ from pathlib import Path
 
 import streamlit as st
 from wheel_backtest.config import BacktestConfig
-from wheel_backtest.data.philippdubach import DATA_END_DATE, DATA_START_DATE
+from wheel_backtest.data.philippdubach import (
+    AVAILABLE_TICKERS,
+    DATA_END_DATE,
+    DATA_START_DATE,
+)
 from wheel_backtest.engine import WheelBacktest
 from wheel_backtest.ui.components import display_results_tabs
 from wheel_backtest.ui.utils import get_cache_dir, get_history, get_output_dir
@@ -114,11 +118,19 @@ def main():
         with col1:
             st.subheader("Basic Settings")
 
-            ticker = st.text_input(
+            # Find index of default ticker in the list
+            try:
+                default_ticker_index = AVAILABLE_TICKERS.index(default_ticker)
+            except ValueError:
+                # If saved ticker not in list, default to SPY
+                default_ticker_index = AVAILABLE_TICKERS.index("SPY")
+
+            ticker = st.selectbox(
                 "Ticker Symbol",
-                value=default_ticker,
-                help="Stock symbol to backtest (e.g., SPY, QQQ, AAPL)",
-            ).upper()
+                options=AVAILABLE_TICKERS,
+                index=default_ticker_index,
+                help=f"Stock symbol to backtest (104 available tickers with options data 2008-2025)",
+            )
 
             initial_capital = st.number_input(
                 "Initial Capital ($)",
