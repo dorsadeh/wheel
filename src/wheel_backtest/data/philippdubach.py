@@ -21,6 +21,10 @@ logger = logging.getLogger(__name__)
 
 BASE_URL = "https://static.philippdubach.com/data/options"
 
+# Data coverage dates (update when data source is refreshed)
+DATA_START_DATE = date(2008, 1, 2)
+DATA_END_DATE = date(2025, 12, 16)  # Last available data date
+
 # All available tickers in the philippdubach dataset
 AVAILABLE_TICKERS = [
     "AAPL", "ABBV", "ABT", "ACN", "ADBE", "AIG", "AMD", "AMGN", "AMT", "AMZN",

@@ -6,6 +6,7 @@ from pathlib import Path
 
 import streamlit as st
 from wheel_backtest.config import BacktestConfig
+from wheel_backtest.data.philippdubach import DATA_END_DATE
 from wheel_backtest.engine import WheelBacktest
 from wheel_backtest.ui.components import display_results_tabs
 from wheel_backtest.ui.utils import get_cache_dir, get_history, get_output_dir
@@ -115,7 +116,9 @@ def main():
     )
 
     # Calculate dates based on preset
-    today = date.today()
+    # Cap to latest available data (philippdubach dataset ends Dec 16, 2025)
+    today = min(date.today(), DATA_END_DATE)
+
     if date_range_preset == "Last 1 Year":
         calculated_start = today - timedelta(days=365)
         calculated_end = today
@@ -148,13 +151,18 @@ def main():
             end_date = st.date_input(
                 "End Date",
                 value=calculated_end,
-                help="Backtest end date",
+                max_value=DATA_END_DATE,
+                help=f"Backtest end date (data available through {DATA_END_DATE.strftime('%Y-%m-%d')})",
             )
     else:
         # For presets, just use the calculated dates
         start_date = calculated_start
         end_date = calculated_end
         st.caption(f"📅 Date range: {start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}")
+
+        # Show info if data is capped
+        if date.today() > DATA_END_DATE:
+            st.info(f"ℹ️ Data available through {DATA_END_DATE.strftime('%Y-%m-%d')}")
 
     st.markdown("---")
 
