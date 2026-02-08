@@ -7,7 +7,11 @@ import pandas as pd
 import streamlit as st
 from wheel_backtest.analytics import BuyAndHoldBenchmark
 from wheel_backtest.data import DataCache, YFinanceProvider
-from wheel_backtest.data.philippdubach import AVAILABLE_TICKERS, TICKER_CATEGORIES
+from wheel_backtest.data.philippdubach import (
+    AVAILABLE_TICKERS,
+    TICKER_CATEGORIES,
+    TICKER_NAMES,
+)
 from wheel_backtest.ui.utils import get_cache_dir
 
 st.set_page_config(
@@ -25,19 +29,58 @@ def main():
 
     # Asset class filter (outside form for dynamic updates)
     st.subheader("🎯 Select Ticker")
-    asset_class = st.selectbox(
-        "Filter by Asset Class",
-        options=["All"] + sorted(TICKER_CATEGORIES.keys()),
-        index=0,
-        help="Filter available tickers by asset class",
-        key="asset_class_filter",
-    )
+
+    col_asset, col_ticker = st.columns(2)
+
+    with col_asset:
+        # Build asset class options with counts
+        asset_class_options = ["All (104)"] + [
+            f"{category} ({len(tickers)})"
+            for category, tickers in sorted(TICKER_CATEGORIES.items())
+        ]
+
+        asset_class_display = st.selectbox(
+            "Filter by Asset Class",
+            options=asset_class_options,
+            index=0,
+            help="Filter available tickers by asset class",
+            key="asset_class_filter",
+        )
+
+        # Extract actual category name (remove count)
+        if asset_class_display.startswith("All"):
+            asset_class = "All"
+        else:
+            asset_class = asset_class_display.split(" (")[0]
 
     # Get filtered ticker list
     if asset_class == "All":
         filtered_tickers = AVAILABLE_TICKERS
     else:
         filtered_tickers = sorted(TICKER_CATEGORIES[asset_class])
+
+    with col_ticker:
+        # Build ticker options with full names
+        ticker_options = [
+            f"{ticker} ({TICKER_NAMES.get(ticker, 'Unknown')})"
+            for ticker in filtered_tickers
+        ]
+
+        # Default to SPY if available, otherwise first ticker
+        try:
+            default_index = filtered_tickers.index("SPY")
+        except ValueError:
+            default_index = 0
+
+        ticker_display = st.selectbox(
+            "Ticker Symbol",
+            options=ticker_options,
+            index=default_index,
+            help=f"Stock symbol to benchmark ({len(filtered_tickers)} available)",
+        )
+
+        # Extract actual ticker symbol (remove full name)
+        ticker = ticker_display.split(" (")[0]
 
     st.markdown("---")
 
@@ -47,19 +90,6 @@ def main():
 
         with col1:
             st.subheader("Settings")
-
-            # Default to SPY if available, otherwise first ticker
-            try:
-                default_index = filtered_tickers.index("SPY")
-            except ValueError:
-                default_index = 0
-
-            ticker = st.selectbox(
-                "Ticker Symbol",
-                options=filtered_tickers,
-                index=default_index,
-                help=f"Stock symbol to benchmark ({len(filtered_tickers)} tickers in {asset_class})",
-            )
 
             initial_capital = st.number_input(
                 "Initial Capital ($)",
